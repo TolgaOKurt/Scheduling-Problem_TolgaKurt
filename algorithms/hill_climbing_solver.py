@@ -84,10 +84,11 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
             penalties['Kişisel İzin İhlali'] += w_pref
             
     # 3. Kıdem Eksikliği
+    worker_map = {w['id']: w for w in workers}
     for d in range(n_days):
         for k in [1, 2, 3]:
             shift_wids = [w['id'] for w in workers if schedule[w['id'], d] == k]
-            ustas = sum(1 for wid in shift_wids if workers[wid]['is_usta'])
+            ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
             if len(shift_wids) > 0 and ustas == 0:
                 penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
                 
@@ -143,13 +144,18 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
         if d < n_days - 1 and s2 == 3 and current_schedule[w1_idx, d+1] == 1: valid_w1 = False
         if d > 0 and current_schedule[w2_idx, d-1] == 3 and s1 == 1: valid_w2 = False
         if d < n_days - 1 and s1 == 3 and current_schedule[w2_idx, d+1] == 1: valid_w2 = False
+        # Akşam→Gündüz dinlenme kontrolü
+        if d > 0 and current_schedule[w1_idx, d-1] == 2 and s2 == 1: valid_w1 = False
+        if d < n_days - 1 and s2 == 2 and current_schedule[w1_idx, d+1] == 1: valid_w1 = False
+        if d > 0 and current_schedule[w2_idx, d-1] == 2 and s1 == 1: valid_w2 = False
+        if d < n_days - 1 and s1 == 2 and current_schedule[w2_idx, d+1] == 1: valid_w2 = False
         
         if valid_w1 and valid_w2:
             valid_w1 = check_hard_constraints_single_day(current_schedule, workers, d, n_workers, shift_reqs)
             if valid_w1:
                 for wid in [w1_idx, w2_idx]:
                     start_tau = max(0, d - 6)
-                    end_tau = min(n_days - 7, d)
+                    end_tau = min(max(0, n_days - 7), d)
                     for tau in range(start_tau, end_tau + 1):
                         if np.sum(current_schedule[wid, tau:tau+7] == 0) == 0:
                             valid_w1 = False

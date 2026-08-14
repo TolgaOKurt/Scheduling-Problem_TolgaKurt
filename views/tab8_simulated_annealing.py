@@ -74,7 +74,7 @@ def render_tab8(params):
     log_den = float(np.log(cooling_val))
     
     k_cooling_needed = int(np.ceil(log_num / log_den))
-    est_cooling_cpu_ms = round(k_cooling_needed * 0.15, 1)
+    est_cooling_cpu_ms = round(k_cooling_needed * 1.5, 1)
 
     st.markdown("#### 🧮 Sıcaklık Parametrelerine Göre İterasyon Tahmin Paneli (Ön-Analiz)")
 

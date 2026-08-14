@@ -229,10 +229,11 @@ class CSPBacktrackingSolver:
             if p_day < self.n_days and self.schedule[i, p_day] != 0:
                 penalties['Kişisel İzin İhlali'] += w_pref
 
+        worker_map = {w['id']: w for w in self.workers}
         for d in range(self.n_days):
             for k in [1, 2, 3]:
                 shift_wids = [w['id'] for w in self.workers if self.schedule[w['id'], d] == k]
-                ustas = sum(1 for wid in shift_wids if self.workers[wid]['is_usta'])
+                ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
                 if len(shift_wids) > 0 and ustas == 0:
                     penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
                 

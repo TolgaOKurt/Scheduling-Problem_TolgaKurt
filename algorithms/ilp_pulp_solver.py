@@ -331,13 +331,16 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             if p_day < n_days and schedule[i, p_day] != 0:
                 penalties['Kişisel İzin İhlali'] += w_pref
 
-        tot_night_diff = sum(abs(night_counts[i] - target_avg_night) for i in range(n_workers))
-        penalties['Gece Nöbeti Dengesizliği'] = int(round(tot_night_diff * w_night_imb))
+        penalties['Gece Nöbeti Dengesizliği'] = sum(
+            int(abs(night_counts[i] - target_avg_night) * w_night_imb)
+            for i in range(n_workers)
+        )
                 
+        worker_map = {w['id']: w for w in workers}
         for t in range(n_days):
             for k in [1, 2, 3]:
                 shift_wids = [w['id'] for w in workers if schedule[w['id'], t] == k]
-                ustas = sum(1 for wid in shift_wids if workers[wid]['is_usta'])
+                ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
                 if len(shift_wids) > 0 and ustas == 0:
                     penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
                     

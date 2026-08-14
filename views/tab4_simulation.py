@@ -357,10 +357,12 @@ def render_tab4(params):
     shift_names = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
     matrix_data = []
     
-    for i, w in enumerate(worker_list):
+    for w in worker_list:
+        # DÜZELTME 5: enumerate index (i) yerine w['id'] kullanılıyor.
+        # custom_workers durumunda i != w['id'] olabileceğinden yanlış hücre okunuyordu.
         row = {"İşçi": w['name'], "Posta": w['posta'], "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi"}
         for d in range(num_days):
-            row[f"Gün {d+1}"] = shift_names[schedule_matrix[i, d]]
+            row[f"Gün {d+1}"] = shift_names[schedule_matrix[w['id'], d]]
         matrix_data.append(row)
 
     df_schedule_view = pd.DataFrame(matrix_data)

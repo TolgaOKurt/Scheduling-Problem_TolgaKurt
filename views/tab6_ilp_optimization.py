@@ -310,7 +310,7 @@ def render_tab6(params):
     g_col3, g_col4 = st.columns(2)
 
     with g_col3:
-        st.markdown("##### 3️⃣ ILP Minimize Edilmiş Yumuşak Kısıt Cezaları (&min; Z)")
+        st.markdown("##### 3️⃣ ILP Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
         df_ilp_penalties = pd.DataFrame({
             "Kısıt Tipi": list(results['penalties'].keys()),
             "Ceza Puanı": list(results['penalties'].values())

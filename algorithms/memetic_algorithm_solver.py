@@ -52,10 +52,15 @@ def check_swap_feasibility(schedule, workers, day, w1_idx, w2_idx, n_workers, n_
     if day < n_days - 1 and s1 == 3 and schedule[w1_idx, day+1] == 1: return False
     if day > 0 and schedule[w2_idx, day-1] == 3 and s2 == 1: return False
     if day < n_days - 1 and s2 == 3 and schedule[w2_idx, day+1] == 1: return False
+    # Akşam→Gündüz dinlenme kontrolü
+    if day > 0 and schedule[w1_idx, day-1] == 2 and s1 == 1: return False
+    if day < n_days - 1 and s1 == 2 and schedule[w1_idx, day+1] == 1: return False
+    if day > 0 and schedule[w2_idx, day-1] == 2 and s2 == 1: return False
+    if day < n_days - 1 and s2 == 2 and schedule[w2_idx, day+1] == 1: return False
 
     for wid in [w1_idx, w2_idx]:
         start_tau = max(0, day - 6)
-        end_tau = min(n_days - 7, day)
+        end_tau = min(max(0, n_days - 7), day)
         for tau in range(start_tau, end_tau + 1):
             if np.sum(schedule[wid, tau:tau+7] == 0) == 0:
                 return False
@@ -94,10 +99,11 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
             penalties['Kişisel İzin İhlali'] += w_pref
 
     # 2. Kıdemli Usta Varlığı
+    worker_map = {w['id']: w for w in workers}
     for t in range(n_days):
         for k in [1, 2, 3]:
             shift_wids = [w['id'] for w in workers if schedule[w['id'], t] == k]
-            ustas = sum(1 for wid in shift_wids if workers[wid]['is_usta'])
+            ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
             if len(shift_wids) > 0 and ustas == 0:
                 penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
 
@@ -237,7 +243,17 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
 
             if random.random() < crossover_rate:
                 split_day = random.randint(1, n_days - 1)
-                child[:, split_day:] = p2[:, split_day:]
+                child_candidate = child.copy()
+                child_candidate[:, split_day:] = p2[:, split_day:]
+                boundary_ok = True
+                for _wid in range(n_workers):
+                    prev = child_candidate[_wid, split_day - 1]
+                    nxt  = child_candidate[_wid, split_day]
+                    if (prev == 3 and nxt == 1) or (prev == 2 and nxt == 1):
+                        boundary_ok = False
+                        break
+                if boundary_ok:
+                    child = child_candidate
 
             if random.random() < mutation_rate:
                 for _ in range(random.randint(1, 3)):

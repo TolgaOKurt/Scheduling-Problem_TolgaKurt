@@ -47,7 +47,7 @@ def render_tab9(params):
     
     p_col1, p_col2, p_col3, p_col4, p_col5 = st.columns(5)
     with p_col1:
-        pop_size = st.slider("Popülasyon Büyüklüğü (P)", 20, 200, 50, 10, key="ga_pop")
+        pop_size = st.slider("Popülasyon Büyüklüğü (P)", 50, 200, 60, 10, key="ga_pop")
     with p_col2:
         generations = st.slider("Jenerasyon Sayısı (G)", 20, 300, 100, 10, key="ga_gen")
     with p_col3:

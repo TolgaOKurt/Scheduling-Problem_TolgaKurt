@@ -19,13 +19,18 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
         workers = custom_workers
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
-        
+
+    # DÜZELTME 1: schedule boyutu gerçek worker sayısına ve en büyük ID'ye göre açılır.
+    # custom_workers ID'leri DataFrame index'inden geldiği için n_workers yetmeyebilir.
+    actual_n = max((w['id'] for w in workers), default=0) + 1
+    actual_n = max(actual_n, n_workers)  # en az n_workers kadar olsun
+
     postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
     
     # Matris: 0: OFF, 1: Gündüz (08-16), 2: Akşam (16-24), 3: Gece (24-08)
-    schedule = np.zeros((n_workers, n_days), dtype=int)
-    night_counts = np.zeros(n_workers, dtype=int)
-    total_worked = np.zeros(n_workers, dtype=int)
+    schedule = np.zeros((actual_n, n_days), dtype=int)
+    night_counts = np.zeros(actual_n, dtype=int)
+    total_worked = np.zeros(actual_n, dtype=int)
     
     hard_violation_logs = []
     shift_names = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
@@ -62,14 +67,19 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                 if d > 0 and schedule[wid, d-1] == 3 and k == 1:
                     continue
                 
+                # Sert Kısıt: Akşam (2) çalıştıysa ertesi gün Gündüz (1) yazılamaz (yetersiz dinlenme)
+                if d > 0 and schedule[wid, d-1] == 2 and k == 1:
+                    continue
+                
                 # Mod kontrolü: Akıllı Greedy ise kademeli izin gününde çalıştırılmaz
                 if "Akıllı" in solver_mode and (d % 7) == staggered_off_days[wid]:
                     continue
                 
-                # Sert Kısıt 5: Naif Greedy modunda 7 gün üst üste çalışanlar Pazar günü zorunlu izin alır
-                if "Naif" in solver_mode and d >= 6:
-                    past_6_offs = sum(1 for tau in range(d-6, d) if schedule[wid, tau] == 0)
-                    if past_6_offs == 0:
+                # Sert Kısıt 5: Naif Greedy modunda 7 gün üst üste çalışanlar zorunlu izin alır.
+                # DÜZELTME 2: Gerçekten 7 ardışık günü kontrol etmek için d>=7 ve range(d-7, d) kullanılmalı.
+                if "Naif" in solver_mode and d >= 7:
+                    past_7_offs = sum(1 for tau in range(d-7, d) if schedule[wid, tau] == 0)
+                    if past_7_offs == 0:
                         continue
                         
                 candidates.append(w)
@@ -102,7 +112,8 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
             
             if len(assigned) < needed:
                 shortage = needed - len(assigned)
-                log_msg = f"❌ Sert Kısıt 1 İhlali [Gün {d+1} - {shift_names[k]}]: İstenen min {needed} kişi, atanan {len(assigned)} kişi! (Kadro Eksikliği: {shortage} kişi)"
+                # DÜZELTME 3: Bu log kadro yetersizliğini raporlar; "Sert Kısıt 1" (aynı gün 2 vardiya) ile karışmaması için etiket düzeltildi.
+                log_msg = f"❌ Kadro Yetersizliği [Gün {d+1} - {shift_names[k]}]: İstenen min {needed} kişi, atanan {len(assigned)} kişi! (Eksik: {shortage} kişi)"
                 hard_violation_logs.append(log_msg)
             
             for w in assigned:
@@ -165,22 +176,29 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                 penalties['Posta Takım Bütünlüğü İhlali'] += deviated * w_posta
     
     # 2. Sirkadiyen Ritim İhlali
-    for wid in range(n_workers):
+    # DÜZELTME 4: Atama döngüsünde Akşam->Gündüz geçişi sert kısıt olarak engelleniyor;
+    # bu yüzden normal akışta bu ceza teorik olarak 0 kalır. Yine de burada tutulur:
+    # (a) custom_workers senaryolarında bypass olabilir, (b) Akıllı Greedy modunda
+    # staggered_off_days filtresi bu geçişi dolaylı olarak yaratabilir.
+    for wid in range(len(workers)):
+        actual_wid = workers[wid]['id']
         for d in range(n_days - 1):
-            if schedule[wid, d] == 2 and schedule[wid, d+1] == 1:
+            if schedule[actual_wid, d] == 2 and schedule[actual_wid, d+1] == 1:
                 penalties['Sirkadiyen Ritim İhlali (Akşam->Gündüz)'] += weights['circadian']
     
-    # 3. Gece Nöbeti Dengesizliği
-    avg_night = np.mean(night_counts)
-    for wid in range(n_workers):
-        diff = abs(night_counts[wid] - avg_night)
+    # 3. Gece Nöbeti Dengesizliği (sadece aktif worker ID'leri üzerinden hesapla)
+    active_night_counts = np.array([night_counts[w['id']] for w in workers])
+    avg_night = np.mean(active_night_counts)
+    for cnt in active_night_counts:
+        diff = abs(cnt - avg_night)
         penalties['Gece Nöbeti Dengesizliği'] += int(diff * weights['night_imb'])
         
     # 4. Kıdem Eksikliği
+    worker_map = {w['id']: w for w in workers}
     for d in range(n_days):
         for k in [1, 2, 3]:
             shift_wids = [w['id'] for w in workers if schedule[w['id'], d] == k]
-            ustas = sum(1 for wid in shift_wids if workers[wid]['is_usta'])
+            ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
             if len(shift_wids) > 0 and ustas == 0:
                 penalties['Kıdem & MYK Sertifika Eksikliği'] += weights['exp_mix']
                 
