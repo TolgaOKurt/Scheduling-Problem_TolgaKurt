@@ -1,0 +1,22 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# PuLP & CBC Solver temporary files
+*.mps
+*.mst
+*.sol
+*.log
+tmp_cbc.log
+Steel_Shift_Scheduling_ILP-pulp.*
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+
+# Streamlit
+.streamlit/secrets.toml

@@ -20,6 +20,8 @@ from views.common_components import (
     render_request_details_expander,
     render_hard_constraints_status_card,
     render_evaluator_cost_badge,
+    render_metaheuristic_metric_cards,
+    render_standard_schedule_analytics,
     LiveStreamTracker,
     render_live_stream_summary
 )
@@ -314,29 +316,8 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         )
         st.plotly_chart(fig_tabu_size, width="stretch", key="t11_fig_tabu_size")
 
-    g_col3, g_col4 = st.columns(2)
-
-    with g_col3:
-        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t11_ts", title="3️⃣ Tabu Search Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
-
-    with g_col4:
-        render_workload_chart(results['schedule'], results['workers'], key_prefix="t11_ts", title="4️⃣ Tabu Search Çalışan İş Yükü ve Gece Nöbeti Dağılımı")
-
-    g_col5, g_col6 = st.columns(2)
-
-    with g_col5:
-        render_penalties_chart(results['penalties'], key_prefix="t11_ts", title="5️⃣ Tabu Search Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
-
-    with g_col6:
-        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t11_ts", title="6️⃣ Tabu Search Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-
-    # 7. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t11_ts", title="7️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-
-    st.divider()
-
-    # --- TAM VARDİYA ÇİZELGESİ TABLOSU ---
-    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Tabu Search Tarafından Üretilen Tam Vardiya Çizelgesi")
-
-    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
-    render_request_details_expander(results['request_details'])
+    # 3-7 STANDART ÇİZELGE ANALİTİKLERİ VE MATRİS TABLOSU
+    render_standard_schedule_analytics(
+        results, num_days, key_prefix="t11_ts",
+        solver_name="Tabu Search", start_chart_num=3
+    )

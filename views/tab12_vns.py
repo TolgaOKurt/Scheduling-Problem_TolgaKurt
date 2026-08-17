@@ -23,8 +23,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
+    render_request_details_expander,
     render_hard_constraints_status_card,
     render_evaluator_cost_badge,
+    render_metaheuristic_metric_cards,
+    render_standard_schedule_analytics,
     LiveStreamTracker,
     render_live_stream_summary
 )
@@ -363,24 +366,8 @@ def render_tab12(params):
         )
         st.plotly_chart(fig_nstats, width="stretch", key="t12_neigh_stats")
 
-    # 2. SATIR: ISI HARİTASI VE İŞ YÜKÜ DAĞILIMI
-    g_col3, g_col4 = st.columns(2)
-    with g_col3:
-        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t12_vns", title="3️⃣ VNS Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
-    with g_col4:
-        render_workload_chart(results['schedule'], results['workers'], key_prefix="t12_vns", title="4️⃣ VNS Çalışan İş Yükü ve Gece Nöbeti Dağılımı")
-
-    # 3. SATIR: YUMUŞAK KISIT CEZALARI VE POSTA BAZINDA YÜK DAĞILIMI
-    g_col5, g_col6 = st.columns(2)
-    with g_col5:
-        render_penalties_chart(results['penalties'], key_prefix="t12_vns", title="5️⃣ VNS Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
-    with g_col6:
-        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t12_vns", title="6️⃣ VNS Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-
-    # 4. SATIR: GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI (STACKED)
-    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t12_vns", title="7️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-
-    st.divider()
-
-    # 5. DETAYLI VARDİYA ÇİZELGE TABLOSU
-    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ VNS Tarafından Üretilen Tam Vardiya Çizelgesi")
+    # 3-7 STANDART ÇİZELGE ANALİTİKLERİ VE MATRİS TABLOSU
+    render_standard_schedule_analytics(
+        results, num_days, key_prefix="t12_vns",
+        solver_name="VNS", start_chart_num=3
+    )

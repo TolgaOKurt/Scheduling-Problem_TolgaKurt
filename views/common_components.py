@@ -569,3 +569,149 @@ def render_live_stream_summary(stream_data, key_prefix=None):
             legend=dict(orientation="h", y=1.15)
         )
         st.plotly_chart(fig, width="stretch", key=f"{k_prefix}_chart_summary")
+
+
+# ================================================================================
+# 12. METASEZGİSEL ORTAK METRİK KARTLARI (7'Lİ STANDART KART PANELİ)
+# ================================================================================
+def render_metaheuristic_metric_cards(results, move_label="Kabul Edilen Hamle", is_population=False):
+    """
+    Tüm metasezgisel çözücüler (HC, SA, GA, MA, TS, VNS) için standart 7 metrik kartını render eder:
+    1. Başlangıç Skoru
+    2. İyileştirilmiş Skor
+    3. İyileşme Oranı (%)
+    4. Sert Kısıt Uygunluğu
+    5. Kabul Edilen Hamle / Generasyon
+    6. Ceza Çağrısı (Evaluator)
+    7. Hesaplama Süresi
+    """
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+
+    with m1:
+        init_s = results.get('initial_score', '-')
+        init_txt = f"{init_s:,.0f}" if isinstance(init_s, (int, float)) else str(init_s)
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Başlangıç Skoru</div>
+        <div class="metric-value" style="color: #dc2626;">{init_txt}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m2:
+        fin_s = results.get('final_score', '-')
+        fin_txt = f"{fin_s:,.0f}" if isinstance(fin_s, (int, float)) else str(fin_s)
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">İyileştirilmiş Skor</div>
+        <div class="metric-value" style="color: #059669;">{fin_txt}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m3:
+        imp = results.get('improvement_rate', 0.0)
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">İyileşme Oranı</div>
+        <div class="metric-value" style="color: #1d4ed8;">%{imp}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
+        </div>""", unsafe_allow_html=True)
+
+    meta = results.get('meta', {})
+    with m5:
+        if is_population:
+            gens = meta.get('generations', results.get('total_iterations', '-'))
+            val_txt = f"{gens} Nesil"
+        else:
+            acc_m = meta.get('accepted_moves', meta.get('successful_escapes', results.get('accepted_moves', 0)))
+            tot_it = results.get('total_iterations', len(results.get('score_history', [])))
+            val_txt = f"{acc_m} / {tot_it}"
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">{move_label}</div>
+        <div class="metric-value" style="color: #7c3aed;">{val_txt}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
+        eval_c = results.get('eval_count', '-')
+        eval_txt = f"{eval_c:,} Adet" if isinstance(eval_c, (int, float)) else f"{eval_c} Adet"
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
+        <div class="metric-value" style="color: #6366f1;">{eval_txt}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m7:
+        exec_ms = results.get('exec_time_ms', 0.0)
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Hesaplama Süresi</div>
+        <div class="metric-value" style="color: #059669;">{exec_ms} ms</div>
+        </div>""", unsafe_allow_html=True)
+
+
+# ================================================================================
+# 13. METASEZGİSEL STANDART ÇİZELGE ANALİTİĞİ VE GRAFİKLERİ
+# ================================================================================
+def render_standard_schedule_analytics(results, num_days, key_prefix, solver_name="", start_chart_num=3, show_request_details=True):
+    """
+    Isı Haritası (Heatmap), İş Yükü (Workload), Ceza Kırılımı (Penalties), Posta Yükü (Posta Load),
+    Yığılmış Vardiya (Stacked Posta), Çizelge Matrisi ve İzin Talepleri dökümünü
+    standart numaralandırma ile tek merkezden render eder.
+    """
+    g1_num = start_chart_num
+    g2_num = start_chart_num + 1
+    g3_num = start_chart_num + 2
+    g4_num = start_chart_num + 3
+    g5_num = start_chart_num + 4
+
+    # Satır 1: Isı Haritası & İş Yükü Dağılımı
+    g_col1, g_col2 = st.columns(2)
+    with g_col1:
+        render_schedule_heatmap(
+            results['schedule'], results['workers'], num_days,
+            key_prefix=f"{key_prefix}_hm",
+            title=f"{g1_num}️⃣ {solver_name} Vardiya Dağılım Isı Haritası (Heatmap)"
+        )
+    with g_col2:
+        render_workload_chart(
+            results['schedule'], results['workers'],
+            key_prefix=f"{key_prefix}_wl",
+            title=f"{g2_num}️⃣ {solver_name} Personel Vardiya & Gece Nöbet Dağılımı",
+            color_seq=["#059669", "#dc2626"]
+        )
+
+    # Satır 2: Yumuşak Kısıt Cezaları & Posta Yük Dağılımı
+    g_col3, g_col4 = st.columns(2)
+    with g_col3:
+        render_penalties_chart(
+            results['penalties'],
+            key_prefix=f"{key_prefix}_pen",
+            title=f"{g3_num}️⃣ {solver_name} Yumuşak Kısıt Ceza Puanı Dağılımı"
+        )
+    with g_col4:
+        render_posta_load_chart(
+            results['schedule'], results['workers'],
+            key_prefix=f"{key_prefix}_pl",
+            title=f"{g4_num}️⃣ {solver_name} Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı"
+        )
+
+    # Satır 3: Gün ve Vardiya Bazında Posta Dağılımı (Yığılmış Sütun)
+    render_shift_posta_stacked_chart(
+        results['schedule'], results['workers'], num_days,
+        key_prefix=f"{key_prefix}_st",
+        title=f"{g5_num}️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)"
+    )
+
+    st.divider()
+
+    # Çizelge Matrisi Tablosu
+    render_schedule_matrix_table(
+        results['schedule'], results['workers'], num_days,
+        title=f"🗓️ {solver_name} Tarafından Optimize Edilen Nihai Vardiya Çizelgesi"
+    )
+
+    # Kişisel İzin Talepleri Detayı (Varsa)
+    if show_request_details and 'request_details' in results and results['request_details']:
+        render_request_details_expander(results['request_details'])
+

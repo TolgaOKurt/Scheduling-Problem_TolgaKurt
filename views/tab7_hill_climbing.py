@@ -20,6 +20,8 @@ from views.common_components import (
     render_request_details_expander,
     render_hard_constraints_status_card,
     render_evaluator_cost_badge,
+    render_metaheuristic_metric_cards,
+    render_standard_schedule_analytics,
     LiveStreamTracker,
     render_live_stream_summary
 )
@@ -170,58 +172,7 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
     )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
-
-    with m1:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Başlangıç Skoru</div>
-        <div class="metric-value" style="color: #dc2626;">{results['initial_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m2:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileştirilmiş Skor</div>
-        <div class="metric-value" style="color: #059669;">{results['final_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m3:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileşme Oranı</div>
-        <div class="metric-value" style="color: #1d4ed8;">%{results['improvement_rate']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m4:
-        is_feas = results.get('is_feasible', True)
-        h_cnt = results.get('hard_violations_count', 0)
-        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
-        feas_color = "#059669" if is_feas else "#dc2626"
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Sert Kısıt Uygunluğu</div>
-        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
-        </div>""", unsafe_allow_html=True)
-
-    meta = results.get('meta', {})
-
-    with m5:
-        acc_m = meta.get('accepted_moves', results.get('accepted_moves', 0))
-        tot_it = results.get('total_iterations', len(results.get('score_history', results.get('history', []))))
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Kabul Edilen Hamle</div>
-        <div class="metric-value" style="color: #7c3aed;">{acc_m} / {tot_it}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m6:
-        eval_c = results.get('eval_count', '-')
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
-        <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m7:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Hesaplama Süresi</div>
-        <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
-        </div>""", unsafe_allow_html=True)
+    render_metaheuristic_metric_cards(results, move_label="Kabul Edilen Hamle")
 
     st.divider()
 
@@ -267,30 +218,8 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
     fig_conv.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380)
     st.plotly_chart(fig_conv, width="stretch", key="t7_fig_conv")
 
-    g_col1, g_col2 = st.columns(2)
-
-    with g_col1:
-        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t7_hc", title="2️⃣ Hill Climbing Vardiya Dağılım Isı Haritası (Heatmap)")
-
-    with g_col2:
-        render_workload_chart(results['schedule'], results['workers'], key_prefix="t7_hc", title="3️⃣ HC Personel Vardiya & Gece Nöbet Dağılımı", color_seq=["#059669", "#dc2626"])
-
-    g_col3, g_col4 = st.columns(2)
-
-    with g_col3:
-        render_penalties_chart(results['penalties'], key_prefix="t7_hc", title="4️⃣ HC Yumuşak Kısıt Ceza Puanı Dağılımı")
-
-    with g_col4:
-        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t7_hc", title="5️⃣ HC Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-
-    # 6. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t7_hc", title="6️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-
-    st.divider()
-
-    # --- FULL SCHEDULE MATRIX TABLE ---
-    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Hill Climbing Tarafından İyileştirilen Vardiya Çizelgesi")
-    
-    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
-    if 'request_details' in results:
-        render_request_details_expander(results['request_details'])
+    # 2-6 STANDART ÇİZELGE ANALİTİKLERİ VE MATRİS TABLOSU
+    render_standard_schedule_analytics(
+        results, num_days, key_prefix="t7_hc",
+        solver_name="Hill Climbing", start_chart_num=2
+    )

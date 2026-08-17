@@ -120,7 +120,7 @@ def render_tab6(params):
     st.divider()
 
     st.markdown("### 🎛️ ILP / MILP Solver Zaman Limiti Kontrolü")
-    time_limit = st.slider("Maksimum Solver Süre Limiti (Saniye)", min_value=5, max_value=120, value=15, step=5, key="ilp_tl")
+    time_limit = st.slider("Maksimum Solver Süre Limiti (Saniye)", min_value=5, max_value=120, value=10, step=5, key="ilp_tl")
 
     num_workers = params['n_workers']
     num_days = params['n_days']

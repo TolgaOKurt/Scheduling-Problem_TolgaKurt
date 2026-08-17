@@ -90,7 +90,7 @@ def render_tab_comparison(params):
 
         # 5. ILP
         progress_bar.progress(42, text="5/11: ILP / MILP Optimizasyonu çözülüyor...")
-        res_t6 = solve_ilp_pulp(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=15, custom_workers=custom_workers)
+        res_t6 = solve_ilp_pulp(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=10, custom_workers=custom_workers)
         st.session_state["res_t6"] = res_t6
 
         # 6. Hill Climbing

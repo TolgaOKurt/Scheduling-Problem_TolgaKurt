@@ -13,7 +13,8 @@ import numpy as np
 
 def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     """
-    Verilen tam vardiya matrisinin 5 yumuşak kısıt ceza puanını eksiksiz hesaplar.
+    Verilen tam vardiya matrisinin 5 yumuşak kısıt ceza puanını eksiksiz ve
+    vektörize C/NumPy hızında hesaplar.
 
     Döndürdüğü:
       - penalties (dict): 5 kuralın ayrı ayrı ceza puanları
@@ -28,55 +29,61 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     w_exp = weights.get('exp_mix', 30)
     w_pref = weights.get('pref_off', 40)
 
-    penalties = {
-        'Posta Takım Bütünlüğü İhlali': 0,
-        'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
-        'Gece Nöbeti Dengesizliği': 0,
-        'Kıdem & MYK Sertifika Eksikliği': 0,
-        'Kişisel İzin İhlali': 0
-    }
-
     # 1. Posta Takım Bütünlüğü Kontrolü (A, B, C, D postalarının aynı vardiyada kalması)
     all_postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
-    for t in range(n_days):
-        for p in all_postas:
-            p_wids = [w['id'] for w in workers if w.get('posta') == p]
-            active_shifts = [schedule[wid, t] for wid in p_wids if schedule[wid, t] != 0]
-            if len(active_shifts) > 1:
-                counts = [active_shifts.count(s) for s in set(active_shifts)]
+    posta_dev = 0
+    for p in all_postas:
+        p_wids = [w['id'] for w in workers if w.get('posta') == p and w['id'] < schedule.shape[0]]
+        if len(p_wids) <= 1:
+            continue
+        p_sub = schedule[p_wids, :]
+        for t in range(n_days):
+            col = p_sub[:, t]
+            active = col[col != 0]
+            if len(active) > 1:
+                counts = [np.sum(active == s) for s in (1, 2, 3)]
                 majority = max(counts)
-                deviated = len(active_shifts) - majority
-                penalties['Posta Takım Bütünlüğü İhlali'] += int(deviated * w_posta)
+                posta_dev += (len(active) - majority)
+    posta_pen = int(posta_dev * w_posta)
 
-    # 2. Sirkadiyen Ritim & Gece Nöbeti Dengesi & Kişisel İzin İhlali
-    night_counts = np.array([np.sum(schedule[i, :] == 3) for i in range(n_workers)])
-    avg_night = np.mean(night_counts) if n_workers > 0 else 0
+    # 2. Vektörize Sirkadiyen Ritim İhlali (Akşam 2 -> Ertesi gün Gündüz 1)
+    if n_days > 1:
+        circ_viols = int(np.sum((schedule[:n_workers, :-1] == 2) & (schedule[:n_workers, 1:] == 1)))
+    else:
+        circ_viols = 0
+    circ_pen = int(circ_viols * w_circ)
 
-    for i in range(n_workers):
-        # 2a. Sirkadiyen Ritim İhlali (Akşam 2 -> Ertesi gün Gündüz 1)
-        for t in range(n_days - 1):
-            if schedule[i, t] == 2 and schedule[i, t + 1] == 1:
-                penalties['Sirkadiyen Ritim İhlali (Akşam->Gündüz)'] += int(w_circ)
+    # 3. Vektörize Gece Nöbeti Dengesizliği
+    night_counts = np.sum(schedule[:n_workers, :] == 3, axis=1)
+    avg_night = np.mean(night_counts) if n_workers > 0 else 0.0
+    night_pen = int(np.sum(np.abs(night_counts - avg_night)) * w_night_imb)
 
-        # 2b. Gece Nöbeti Dengesizliği
-        diff = abs(night_counts[i] - avg_night)
-        penalties['Gece Nöbeti Dengesizliği'] += int(diff * w_night_imb)
+    # 4. Vektörize Kişisel İzin İhlali
+    pref_days = np.array([workers[i].get('pref_off', 1) - 1 for i in range(min(n_workers, len(workers)))])
+    valid_mask = (pref_days >= 0) & (pref_days < n_days)
+    pref_rows = np.arange(len(pref_days))[valid_mask]
+    pref_cols = pref_days[valid_mask]
+    pref_viols = int(np.sum(schedule[pref_rows, pref_cols] != 0))
+    pref_pen = int(pref_viols * w_pref)
 
-        # 2c. Kişisel İzin İhlali (pref_off: 1..n_days -> indeks: pref_off - 1)
-        p_day_idx = workers[i].get('pref_off', 1) - 1
-        if 0 <= p_day_idx < n_days and schedule[i, p_day_idx] != 0:
-            penalties['Kişisel İzin İhlali'] += int(w_pref)
-
-    # 3. Kıdem & MYK Sertifika Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
-    worker_map = {w['id']: w for w in workers}
+    # 5. Kıdem & MYK Sertifika Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
+    usta_set = {w['id'] for w in workers if w.get('is_usta', False)}
+    exp_pen = 0
     for t in range(n_days):
+        col = schedule[:n_workers, t]
         for k in (1, 2, 3):
-            shift_wids = [w['id'] for w in workers if schedule[w['id'], t] == k]
-            ustas = sum(1 for wid in shift_wids if worker_map[wid].get('is_usta', False))
-            if len(shift_wids) > 0 and ustas == 0:
-                penalties['Kıdem & MYK Sertifika Eksikliği'] += int(w_exp)
+            shift_wids = np.where(col == k)[0]
+            if len(shift_wids) > 0 and not any(wid in usta_set for wid in shift_wids):
+                exp_pen += int(w_exp)
 
-    total_score = sum(penalties.values())
+    penalties = {
+        'Posta Takım Bütünlüğü İhlali': posta_pen,
+        'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': circ_pen,
+        'Gece Nöbeti Dengesizliği': night_pen,
+        'Kıdem & MYK Sertifika Eksikliği': exp_pen,
+        'Kişisel İzin İhlali': pref_pen
+    }
+    total_score = posta_pen + circ_pen + night_pen + exp_pen + pref_pen
     return penalties, total_score
 
 

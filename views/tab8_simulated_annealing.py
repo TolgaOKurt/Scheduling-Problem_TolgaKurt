@@ -21,6 +21,8 @@ from views.common_components import (
     render_request_details_expander,
     render_hard_constraints_status_card,
     render_evaluator_cost_badge,
+    render_metaheuristic_metric_cards,
+    render_standard_schedule_analytics,
     LiveStreamTracker,
     render_live_stream_summary
 )
@@ -187,56 +189,7 @@ def render_tab8(params):
     meta = results.get('meta', {})
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
-
-    with m1:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Başlangıç Skoru</div>
-        <div class="metric-value" style="color: #dc2626;">{results['initial_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m2:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileştirilmiş Skor</div>
-        <div class="metric-value" style="color: #059669;">{results['final_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m3:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileşme Oranı</div>
-        <div class="metric-value" style="color: #1d4ed8;">%{results['improvement_rate']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m4:
-        is_feas = results.get('is_feasible', True)
-        h_cnt = results.get('hard_violations_count', 0)
-        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
-        feas_color = "#059669" if is_feas else "#dc2626"
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Sert Kısıt Uygunluğu</div>
-        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m5:
-        w_acc = meta.get('worse_accepted_moves', results.get('worse_accepted_moves', 0))
-        tot_acc = meta.get('accepted_moves', results.get('accepted_moves', 0))
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Kabul Edilen Kötü Hamle</div>
-        <div class="metric-value" style="color: #ea580c;">{w_acc} / {tot_acc}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m6:
-        eval_c = results.get('eval_count', '-')
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
-        <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m7:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Arama Süresi</div>
-        <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
-        </div>""", unsafe_allow_html=True)
+    render_metaheuristic_metric_cards(results, move_label="Kabul Edilen Kötü Hamle")
 
     st.divider()
 
@@ -286,30 +239,47 @@ def render_tab8(params):
     )
     st.plotly_chart(fig_sa_conv, width="stretch", key="t8_fig_sa_conv")
 
-    g_col1, g_col2 = st.columns(2)
+    # 2. SICAKLIK SOĞUMA EĞRİSİ VE METROPOLIS KABUL ORANI DİNAMİĞİ
+    st.markdown("##### 2️⃣ Sıcaklık Soğuma ve Dinamik Metropolis Kabul Oranı Eğrisi (Temperature Decay vs Acceptance Rate)")
+    probs = meta.get('acceptance_probs', [])
+    if probs and len(probs) == len(iters):
+        # Kayan ortalama kabul olasılığı (rolling 50-step window)
+        window = min(50, max(1, len(probs) // 10))
+        prob_series = pd.Series(probs).rolling(window=window, min_periods=1).mean() * 100
+        
+        df_decay = pd.DataFrame({
+            "İterasyon": iters,
+            "Sıcaklık (T)": temp_hist,
+            "Kabul Olasılığı P(%)": prob_series
+        })
+        
+        fig_decay = go.Figure()
+        fig_decay.add_trace(go.Scatter(
+            x=iters,
+            y=temp_hist,
+            mode="lines",
+            name="Sıcaklık T(k) (°C)",
+            line=dict(color="#ea580c", width=2.5)
+        ))
+        fig_decay.add_trace(go.Scatter(
+            x=iters,
+            y=prob_series,
+            mode="lines",
+            name=f"Metropolis Kabul Oranı P(ΔZ, T) % ({window} Adım Kayan Ort.)",
+            line=dict(color="#7c3aed", width=2, dash="dot"),
+            yaxis="y2"
+        ))
+        fig_decay.update_layout(
+            paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=350,
+            xaxis=dict(title=dict(text="Arama İterasyonu (K)")),
+            yaxis=dict(title=dict(text="Sıcaklık T (°C)", font=dict(color="#ea580c")), tickfont=dict(color="#ea580c")),
+            yaxis2=dict(title=dict(text="Kabul Olasılığı P (%)", font=dict(color="#7c3aed")), tickfont=dict(color="#7c3aed"), overlaying="y", side="right", range=[0, 105]),
+            legend=dict(orientation="h", y=1.15)
+        )
+        st.plotly_chart(fig_decay, width="stretch", key="t8_fig_decay")
 
-    with g_col1:
-        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t8_sa", title="2️⃣ SA Vardiya Dağılım Isı Haritası (Heatmap)")
-
-    with g_col2:
-        render_workload_chart(results['schedule'], results['workers'], key_prefix="t8_sa", title="3️⃣ SA Personel Vardiya & Gece Nöbet Dağılımı", color_seq=["#059669", "#dc2626"])
-
-    g_col3, g_col4 = st.columns(2)
-
-    with g_col3:
-        render_penalties_chart(results['penalties'], key_prefix="t8_sa", title="4️⃣ SA Yumuşak Kısıt Ceza Puanı Dağılımı")
-
-    with g_col4:
-        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t8_sa", title="5️⃣ SA Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-
-    # 6. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t8_sa", title="6️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-    
-    st.divider()
-
-    # --- FULL SCHEDULE MATRIX TABLE ---
-    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Simulated Annealing Tarafından Üretilen Vardiya Çizelgesi")
-    
-    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
-    if 'request_details' in results:
-        render_request_details_expander(results['request_details'])
+    # 3-7 STANDART ÇİZELGE ANALİTİKLERİ VE MATRİS TABLOSU
+    render_standard_schedule_analytics(
+        results, num_days, key_prefix="t8_sa",
+        solver_name="Simulated Annealing", start_chart_num=3
+    )

@@ -21,6 +21,8 @@ from views.common_components import (
     render_request_details_expander,
     render_hard_constraints_status_card,
     render_evaluator_cost_badge,
+    render_metaheuristic_metric_cards,
+    render_standard_schedule_analytics,
     LiveStreamTracker,
     render_live_stream_summary
 )
@@ -62,7 +64,7 @@ def render_tab9(params):
     with p_col1:
         pop_size = st.slider("Popülasyon Büyüklüğü (P)", 50, 200, 60, 10, key="ga_pop")
     with p_col2:
-        generations = st.slider("Jenerasyon Sayısı (G)", 20, 300, 100, 10, key="ga_gen")
+        generations = st.slider("Jenerasyon Sayısı (G)", 20, 600, 100, 10, key="ga_gen")
     with p_col3:
         crossover_rate = st.slider("Çaprazlama Oranı (p_c)", 0.50, 1.00, 0.85, 0.05, format="%.2f", key="ga_pc")
     with p_col4:
@@ -156,57 +158,7 @@ def render_tab9(params):
     )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
-
-    with m1:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Başlangıç Skoru</div>
-        <div class="metric-value" style="color: #dc2626;">{results['initial_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m2:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">En İyi Skor</div>
-        <div class="metric-value" style="color: #059669;">{results['final_score']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m3:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileşme Oranı</div>
-        <div class="metric-value" style="color: #1d4ed8;">%{results['improvement_rate']}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m4:
-        is_feas = results.get('is_feasible', True)
-        h_cnt = results.get('hard_violations_count', 0)
-        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
-        feas_color = "#059669" if is_feas else "#dc2626"
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Sert Kısıt Uygunluğu</div>
-        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
-        </div>""", unsafe_allow_html=True)
-
-    meta = results.get('meta', {})
-
-    with m5:
-        tot_it = results.get('total_iterations', results.get('generations_run', generations))
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Jenerasyon</div>
-        <div class="metric-value" style="color: #8b5cf6;">{tot_it} Nesil</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m6:
-        eval_c = results.get('eval_count', total_evaluations)
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
-        <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m7:
-        st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Evrim Süresi</div>
-        <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
-        </div>""", unsafe_allow_html=True)
+    render_metaheuristic_metric_cards(results, move_label="Jenerasyon", is_population=True)
 
     st.divider()
 
@@ -215,6 +167,7 @@ def render_tab9(params):
 
     score_hist = results.get('score_history', results.get('best_score_history', []))
     gens = list(range(1, len(score_hist) + 1))
+    meta = results.get('meta', {})
     avg_scores = meta.get('avg_score_history', results.get('avg_score_history', score_hist))
     div_scores = meta.get('diversity_history', results.get('diversity_history', [0.0] * len(gens)))
     
@@ -252,30 +205,8 @@ def render_tab9(params):
         fig_div.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380)
         st.plotly_chart(fig_div, width="stretch", key="t9_fig_div")
 
-    g_col3, g_col4 = st.columns(2)
-
-    with g_col3:
-        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t9_ga", title="3️⃣ GA En İyi Vardiya Dağılım Isı Haritası (Heatmap)")
-
-    with g_col4:
-        render_workload_chart(results['schedule'], results['workers'], key_prefix="t9_ga", title="4️⃣ GA Çalışan İş Yükü ve Gece Nöbeti Dağılımı", color_seq=["#059669", "#dc2626"])
-
-    g_col5, g_col6 = st.columns(2)
-
-    with g_col5:
-        render_penalties_chart(results['penalties'], key_prefix="t9_ga", title="5️⃣ GA Yumuşak Kısıt Ceza Puanı Dağılımı")
-
-    with g_col6:
-        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t9_ga", title="6️⃣ GA Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-
-    # 7. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t9_ga", title="7️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-
-    st.divider()
-
-    # --- FULL SCHEDULE MATRIX TABLE ---
-    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Genetik Algoritma Tarafından Üretilen Tam Vardiya Çizelgesi")
-    
-    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
-    if 'request_details' in results:
-        render_request_details_expander(results['request_details'])
+    # 3-7 STANDART ÇİZELGE ANALİTİKLERİ VE MATRİS TABLOSU
+    render_standard_schedule_analytics(
+        results, num_days, key_prefix="t9_ga",
+        solver_name="Genetik Algoritma", start_chart_num=3
+    )
