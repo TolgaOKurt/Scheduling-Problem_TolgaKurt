@@ -18,7 +18,10 @@ from views.common_components import (
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
     render_request_details_expander,
-    render_worker_profiles_table
+    render_worker_profiles_table,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab5(params):
@@ -70,13 +73,7 @@ def render_tab5(params):
     st.markdown("#### 🧮 Arama Ağacı Boyutu & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
     c_est1, c_est2 = st.columns(2)
     with c_est1:
-        st.metric(
-            label="📊 Tahmini Ceza Değerlendirme",
-            value="1 Çağrı",
-            delta=f"{cost_ms:.2f} ms * 1 = {t5_time_str}",
-            delta_color="off",
-            help="CSP kısıt tatmini ile geçerli çözüme ulaştıktan sonra nihai yumuşak ceza analizi için 1 kez çağrılır."
-        )
+        render_evaluator_cost_badge(1, cost_ms, label="Tahmini Ceza Değerlendirme")
     with c_est2:
         st.metric(label="🌳 Maksimum Budama Limiti", value=f"{max_backtracks:,} Adım", help="Sonsuz döngüyü önleyen emniyet tavan sınırı.")
 
@@ -89,7 +86,7 @@ def render_tab5(params):
         return
 
     if run_btn:
-        with st.spinner("⏳ CSP Backtracking Arama Ağacı Taranıyor... Lütfen Bekleyiniz..."):
+        with st.spinner("⏳ CSP Backtracking Arama Ağacı Taranıyor..."):
             solver = CSPBacktrackingSolver(
                 n_workers=num_workers,
                 n_days=num_days,
@@ -105,27 +102,50 @@ def render_tab5(params):
     else:
         results = st.session_state["res_t5"]
 
+    meta = results.get('meta', {})
+    backtracks_cnt = meta.get('backtracks', results.get('backtracks', 0))
+    nodes_cnt = meta.get('nodes_explored', results.get('nodes_explored', 0))
+    is_feas = results.get('is_feasible', results.get('success', False))
+    exec_time = results.get('exec_time_ms', 0.0)
+
+    # --- CANLI ARAMA AĞACI DURUM BİLGİSİ ---
+    st.markdown("#### ⚡ CSP Backtracking Arama Ağacı Taraması (Kısıt Tatmin Durumu)")
+    if is_feas:
+        st.progress(1.0, text=f"✅ %100 Tamamlandı | Geri İzleme (Backtrack): {backtracks_cnt:,} / {max_backtracks:,} | Gezilen Düğüm: {nodes_cnt:,} | Toplam Süre: {exec_time:.2f} ms | ✅ Geçerli Çözüm Bulundu")
+    elif backtracks_cnt >= max_backtracks:
+        st.progress(1.0, text=f"⏱️ Limit Aşıldı | Geri İzleme (Backtrack): {backtracks_cnt:,} / {max_backtracks:,} | Gezilen Düğüm: {nodes_cnt:,} | Toplam Süre: {exec_time:.2f} ms | ⏱️ Maksimum Adım Sınırına Ulaşıldı")
+    else:
+        st.progress(1.0, text=f"❌ Çözüm Yok | Geri İzleme (Backtrack): {backtracks_cnt:,} | Gezilen Düğüm: {nodes_cnt:,} | Toplam Süre: {exec_time:.2f} ms | ❌ Kısıt Çıkmazı")
+
     # --- METRİK KARTLARI ---
     m1, m2, m3, m4, m5, m6 = st.columns(6)
 
     with m1:
-        status_str = "✅ BAŞARILI" if results['success'] else "❌ LİMİT AŞILDI"
-        status_clr = "#059669" if results['success'] else "#dc2626"
+        if is_feas:
+            status_str = "✅ BAŞARILI"
+            status_clr = "#059669"
+        elif backtracks_cnt >= max_backtracks:
+            status_str = "⏱️ LİMİT AŞILDI"
+            status_clr = "#dc2626"
+        else:
+            status_str = "❌ ÇÖZÜM YOK"
+            status_clr = "#dc2626"
+
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">CSP Durumu</div>
-        <div class="metric-value" style="color: {status_clr}; font-size: 1.15rem;">{status_str}</div>
+        <div class="metric-value" style="color: {status_clr}; font-size: 1.05rem;">{status_str}</div>
         </div>""", unsafe_allow_html=True)
 
     with m2:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Geri İzleme (Backtrack)</div>
-        <div class="metric-value" style="color: #d97706;">{results['backtracks']}</div>
+        <div class="metric-value" style="color: #d97706;">{backtracks_cnt}</div>
         </div>""", unsafe_allow_html=True)
 
     with m3:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Gezilen Düğüm</div>
-        <div class="metric-value" style="color: #2563eb;">{results['nodes_explored']}</div>
+        <div class="metric-value" style="color: #2563eb;">{nodes_cnt}</div>
         </div>""", unsafe_allow_html=True)
 
     with m4:
@@ -144,8 +164,14 @@ def render_tab5(params):
     with m6:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Toplam Ceza Puanı</div>
-        <div class="metric-value" style="color: #dc2626;">{results['total_penalty']}</div>
+        <div class="metric-value" style="color: #dc2626;">{results['final_score']}</div>
         </div>""", unsafe_allow_html=True)
+
+    if not is_feas:
+        if backtracks_cnt >= max_backtracks:
+            st.error(f"⏱️ **Maksimum Backtrack Limiti ({max_backtracks:,} Adım) Aşıldı:** Arama algoritması belirlenen adım sınırı içinde geçerli bir çizelge bulamadı. Yukarıdaki arama limitini artırmayı deneyebilirsiniz.")
+        else:
+            st.error(f"❌ **Matematiksel Olarak Geçerli Çözüm Bulunamadı (Kadro / Kısıt Çıkmazı):** Arama ağacı ({backtracks_cnt:,} geri izleme ile) tamamen tarandı ve sert kısıtları %100 sağlayan hiçbir kombinasyon bulunamadı. Toplam personel ({num_workers}) ve günlük vardiya ihtiyaçları ({req_day} Gündüz + {req_eve} Akşam + {req_night} Gece = {req_day+req_eve+req_night} işçi/gün) haftalık zorunlu izin (max 6 gün çalışma) ve dinlenme kuralları ile çelişmektedir.")
 
     st.divider()
 

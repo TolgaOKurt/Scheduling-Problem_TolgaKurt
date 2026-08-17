@@ -1,45 +1,59 @@
 """
 ================================================================================
-  ALGORITHMS/GREEDY_SOLVER.PY - GREEDY / HEURISTIC VARDIYA SOLVER
+  ALGORITHMS/GREEDY_SOLVER.PY - GREEDY / YAPICI SEZGİSEL VARDIYA SOLVER
 ================================================================================
   Bu modül, Sert Kısıtları (Hard Constraints) denetleyen, 4-Posta takım bütünlüğünü
-  ve MYK sertifikalarını denetleyip cezalandıran Açgözlü (Greedy) algoritmasını içerir.
+  ve MYK sertifikalarını denetleyip cezalandıran Yapıcı Sezgisel (Constructive / Greedy)
+  algoritmasını içerir. 3 farklı literatür modu desteklenir:
+  1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)
+  2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)
+  3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)
 ================================================================================
 """
 
+import time
 import numpy as np
 import pandas as pd
 from algorithms.worker_manager import generate_worker_profiles
-from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details
+from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details, audit_all_hard_constraints
+from algorithms.solver_contract import build_standard_solver_result
 
-def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solver_mode="Naif Greedy (Standart Açgözlü Yaklaşım)", custom_workers=None):
+def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solver_mode="1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)", custom_workers=None):
     """
-    Greedy Vardiya Çizelgeleme Algoritması.
+    Greedy / Yapıcı Sezgisel (Constructive Heuristic) Vardiya Çizelgeleme Algoritması.
     """
+    start_time = time.time()
     if custom_workers is not None and len(custom_workers) == n_workers:
         workers = custom_workers
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
-    # DÜZELTME 1: schedule boyutu gerçek worker sayısına ve en büyük ID'ye göre açılır.
-    # custom_workers ID'leri DataFrame index'inden geldiği için n_workers yetmeyebilir.
     actual_n = max((w['id'] for w in workers), default=0) + 1
-    actual_n = max(actual_n, n_workers)  # en az n_workers kadar olsun
+    actual_n = max(actual_n, n_workers)
 
     postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
+    req_cert_list = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
+    shift_names = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
     
     # Matris: 0: OFF, 1: Gündüz (08-16), 2: Akşam (16-24), 3: Gece (24-08)
     schedule = np.zeros((actual_n, n_days), dtype=int)
     night_counts = np.zeros(actual_n, dtype=int)
     total_worked = np.zeros(actual_n, dtype=int)
+    consecutive_work = np.zeros(actual_n, dtype=int)
     
     hard_violation_logs = []
-    shift_names = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
+    
+    is_mrv_lcv = ("MRV" in solver_mode or "LCV" in solver_mode or "Kısıt Öncelikli" in solver_mode or "Constraint-First" in solver_mode)
+    is_staggered = ("Kademeli" in solver_mode or "Akıllı" in solver_mode or "Staggered" in solver_mode or "Pattern" in solver_mode or is_mrv_lcv)
     
     staggered_off_days = {}
-    if "Akıllı" in solver_mode:
-        for i in range(n_workers):
-            staggered_off_days[i] = (i % 7)
+    if is_staggered:
+        for w in workers:
+            wid = w['id']
+            if is_mrv_lcv and w.get('pref_off', 0) > 0:
+                staggered_off_days[wid] = (int(w['pref_off']) - 1) % 7
+            else:
+                staggered_off_days[wid] = (wid % 7)
             
     # Gün gün Atama Döngüsü
     for d in range(n_days):
@@ -52,71 +66,126 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
             3: postas[(d + 2) % 4]
         }
         
-        for k in [1, 2, 3]:
-            needed = shift_reqs[k]
-            target_p = target_posta_for_shift[k]
-            candidates = []
-            
-            for w in workers:
-                wid = w['id']
-                
-                # Sert Kısıt 1: Aynı gün 2 vardiyaya yazılmaz
-                if schedule[wid, d] != 0:
-                    continue
-                
-                # Sert Kısıt 3 & 4: Gece (3) çalıştıysa ertesi gün Gündüz (1) yazılamaz (11-16 saat dinlenme)
-                if d > 0 and schedule[wid, d-1] == 3 and k == 1:
-                    continue
-                
-                # Sert Kısıt: Akşam (2) çalıştıysa ertesi gün Gündüz (1) yazılamaz (yetersiz dinlenme)
-                if d > 0 and schedule[wid, d-1] == 2 and k == 1:
-                    continue
-                
-                # Mod kontrolü: Akıllı Greedy ise kademeli izin gününde çalıştırılmaz
-                if "Akıllı" in solver_mode and (d % 7) == staggered_off_days[wid]:
-                    continue
-                
-                # Sert Kısıt 5: Naif Greedy modunda 7 gün üst üste çalışanlar zorunlu izin alır.
-                # DÜZELTME 2: Gerçekten 7 ardışık günü kontrol etmek için d>=7 ve range(d-7, d) kullanılmalı.
-                if "Naif" in solver_mode and d >= 7:
-                    past_7_offs = sum(1 for tau in range(d-7, d) if schedule[wid, tau] == 0)
-                    if past_7_offs == 0:
+        assigned_shifts = {1: [], 2: [], 3: []}
+        
+        if is_staggered:
+            # -------------------------------------------------------------
+            # KADEMELİ / MRV-LCV MODU:
+            # FAZ 1: Gün içindeki 3 vardiyanın her birine 4 zorunlu MYK ehliyetini
+            # önceden paylaştır (Gündüzün tüm ehliyetleri tekeline almasını engeller).
+            # -------------------------------------------------------------
+            for k in [1, 2, 3]:
+                target_p = target_posta_for_shift[k]
+                for cert in req_cert_list:
+                    if any(cert in w['skills'] for w in assigned_shifts[k]):
                         continue
+                    cands = []
+                    for w in workers:
+                        wid = w['id']
+                        if schedule[wid, d] != 0 or any(w in assigned_shifts[s] for s in [1, 2, 3]):
+                            continue
+                        if d > 0 and schedule[wid, d-1] in (2, 3) and k == 1:
+                            continue
+                        if (d % 7) == staggered_off_days[wid]:
+                            continue
+                        if cert in w['skills']:
+                            cands.append(w)
+                    if cands:
+                        if is_mrv_lcv:
+                            # LCV: Joker ehliyetlileri sakla, izin gününü koru
+                            cands.sort(key=lambda x: (
+                                0 if x['posta'] == target_p else 1,
+                                1 if (x.get('pref_off', 0) == (d + 1)) else 0,
+                                len(x['skills']),
+                                total_worked[x['id']]
+                            ))
+                        else:
+                            cands.sort(key=lambda x: (
+                                0 if x['posta'] == target_p else 1,
+                                len(x['skills']),
+                                total_worked[x['id']]
+                            ))
+                        assigned_shifts[k].append(cands[0])
                         
-                candidates.append(w)
-            
-            # Posta Öncelikli Sıralama: O vardiyanın hedef Posta grubuna ait olan işçilere birincil öncelik ver
-            candidates.sort(key=lambda x: (
-                0 if x['posta'] == target_p else 1,
-                night_counts[x['id']] if k == 3 else 0,
-                total_worked[x['id']]
-            ))
-            
-            # SERT KISIT 2 (MYK KRİTİK SERTİFİKA EŞLEŞTİRME)
-            assigned = []
-            req_cert_list = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
-            
-            for cert in req_cert_list:
-                if len(assigned) >= needed:
-                    break
-                if not any(cert in w['skills'] for w in assigned):
-                    for cand in candidates:
-                        if cand not in assigned and cert in cand['skills']:
-                            assigned.append(cand)
-                            break
-                            
-            for cand in candidates:
-                if len(assigned) >= needed:
-                    break
-                if cand not in assigned:
-                    assigned.append(cand)
-            
-            if len(assigned) < needed:
-                shortage = needed - len(assigned)
-                # DÜZELTME 3: Bu log kadro yetersizliğini raporlar; "Sert Kısıt 1" (aynı gün 2 vardiya) ile karışmaması için etiket düzeltildi.
-                log_msg = f"❌ Kadro Yetersizliği [Gün {d+1} - {shift_names[k]}]: İstenen min {needed} kişi, atanan {len(assigned)} kişi! (Eksik: {shortage} kişi)"
-                hard_violation_logs.append(log_msg)
-            
+            # FAZ 2: Kalan boş kadroları doldur
+            for k in [1, 2, 3]:
+                needed = shift_reqs[k]
+                target_p = target_posta_for_shift[k]
+                cands = []
+                for w in workers:
+                    wid = w['id']
+                    if schedule[wid, d] != 0 or any(w in assigned_shifts[s] for s in [1, 2, 3]):
+                        continue
+                    if d > 0 and schedule[wid, d-1] in (2, 3) and k == 1:
+                        continue
+                    if (d % 7) == staggered_off_days[wid]:
+                        continue
+                    cands.append(w)
+                    
+                if is_mrv_lcv:
+                    cands.sort(key=lambda x: (
+                        0 if x['posta'] == target_p else 1,
+                        1 if (x.get('pref_off', 0) == (d + 1)) else 0,
+                        night_counts[x['id']] if k == 3 else 0,
+                        total_worked[x['id']],
+                        -len(x['skills'])
+                    ))
+                else:
+                    cands.sort(key=lambda x: (
+                        0 if x['posta'] == target_p else 1,
+                        night_counts[x['id']] if k == 3 else 0,
+                        total_worked[x['id']]
+                    ))
+                    
+                for c in cands:
+                    if len(assigned_shifts[k]) >= needed:
+                        break
+                    assigned_shifts[k].append(c)
+        else:
+            # -------------------------------------------------------------
+            # 1. SIRALI / MİYOPİK GREEDY MODU (Klasik ardışık doldurma)
+            # İleriye bakış yapmaz, Gündüz -> Akşam -> Gece sırasıyla doldurur.
+            # -------------------------------------------------------------
+            for k in [1, 2, 3]:
+                needed = shift_reqs[k]
+                target_p = target_posta_for_shift[k]
+                cands = []
+                for w in workers:
+                    wid = w['id']
+                    if schedule[wid, d] != 0 or any(w in assigned_shifts[s] for s in [1, 2, 3]):
+                        continue
+                    if d > 0 and schedule[wid, d-1] in (2, 3) and k == 1:
+                        continue
+                    # 6 gün kesintisiz çalışan işçiyi kanun gereği 7. gün izne ayır
+                    if consecutive_work[wid] >= 6:
+                        continue
+                    cands.append(w)
+                    
+                cands.sort(key=lambda x: (
+                    0 if x['posta'] == target_p else 1,
+                    night_counts[x['id']] if k == 3 else 0,
+                    total_worked[x['id']]
+                ))
+                
+                # Sertifika eşleştirme
+                for cert in req_cert_list:
+                    if len(assigned_shifts[k]) >= needed:
+                        break
+                    if not any(cert in w['skills'] for w in assigned_shifts[k]):
+                        for cand in cands:
+                            if cand not in assigned_shifts[k] and cert in cand['skills']:
+                                assigned_shifts[k].append(cand)
+                                break
+                                
+                for cand in cands:
+                    if len(assigned_shifts[k]) >= needed:
+                        break
+                    if cand not in assigned_shifts[k]:
+                        assigned_shifts[k].append(cand)
+
+        # Atamaları Çizelgeye Kaydet ve Durum Güncelle
+        for k in [1, 2, 3]:
+            assigned = assigned_shifts[k]
             for w in assigned:
                 wid = w['id']
                 schedule[wid, d] = k
@@ -124,54 +193,71 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                 if k == 3:
                     night_counts[wid] += 1
 
-            if len(assigned) > 0:
-                assigned_skills = set()
-                for w in assigned:
-                    assigned_skills.update(w['skills'])
-                
-                for req_skill in req_cert_list:
-                    if req_skill not in assigned_skills:
-                        log_msg = f"⚠️ Sert Kısıt 2 İhlali [Gün {d+1} - {shift_names[k]}]: Eksik Kritik Sertifika ➔ Vardiyada '{req_skill}' ehliyetli eleman yok!"
-                        hard_violation_logs.append(log_msg)
+        # Gün sonu kesintisiz çalışma takibi
+        for wid in range(actual_n):
+            if schedule[wid, d] > 0:
+                consecutive_work[wid] += 1
+            else:
+                consecutive_work[wid] = 0
 
     # Kişisel İzin Talepleri Detay Takibi (Merkezi Yardımcı Fonksiyon)
     request_details = build_worker_request_details(schedule, workers, n_days, weights)
     
     # YUMUŞAK KISIT CEZALARI VE POSTA TAKIM BÜTÜNLÜĞÜ HESABI (MERKEZİ MOTOR)
     penalties, total_penalty = calculate_full_penalties(schedule, workers, n_workers, n_days, weights)
-    hard_violations_count = len(hard_violation_logs)
     
-    return schedule, workers, penalties, total_penalty, hard_violations_count, hard_violation_logs, request_details
+    # Merkezi Sert Kısıt Denetim Uyumluluğu (Tek ve Kesin Kaynak)
+    is_feasible, hard_violations_count, hard_violation_logs = audit_all_hard_constraints(
+        schedule, workers, n_workers, n_days, {1: r_day, 2: r_eve, 3: r_night}
+    )
+    exec_time_ms = (time.time() - start_time) * 1000.0
+
+    return build_standard_solver_result(
+        schedule=schedule,
+        workers=workers,
+        is_feasible=is_feasible,
+        hard_violations_count=hard_violations_count,
+        hard_violation_logs=hard_violation_logs,
+        final_score=total_penalty,
+        initial_score=total_penalty,
+        improvement_rate=0.0,
+        exec_time_ms=exec_time_ms,
+        eval_count=1,
+        total_iterations=1,
+        termination_reason=f"Yapıcı sezgisel kural tabanlı atamayı tamamladı ({solver_mode}).",
+        penalties=penalties,
+        request_details=request_details,
+        score_history=[float(total_penalty)],
+        meta={'solver_mode': solver_mode}
+    )
 
 
 def get_best_greedy_initial_solution(n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=None):
     """
-    Hem Naif Greedy hem de Akıllı Kademeli Greedy çözücülerini saliseler içinde çalıştırıp
+    3 farklı yapıcı sezgiseli (Miyopik, Kademeli, MRV/LCV) saliseler içinde çalıştırıp
     sert kısıtları ihlal etmeyen ve toplam ceza puanı EN DÜŞÜK olan en iyi başlangıç çözümünü döndürür.
     (Best-of-Heuristics Seeding)
     """
-    # 1. Naif Greedy
-    res_naif = run_greedy_algorithm(
-        n_workers, n_days, r_day, r_eve, r_night, weights,
-        solver_mode="Naif Greedy (Standart Açgözlü Yaklaşım)", custom_workers=custom_workers
-    )
+    modes = [
+        "1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)",
+        "2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)",
+        "3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)"
+    ]
     
-    # 2. Akıllı Kademeli Greedy
-    res_smart = run_greedy_algorithm(
-        n_workers, n_days, r_day, r_eve, r_night, weights,
-        solver_mode="Akıllı Kademeli Greedy (İzinleri Günlere Yayan)", custom_workers=custom_workers
-    )
+    all_results = []
+    for mode in modes:
+        res = run_greedy_algorithm(
+            n_workers, n_days, r_day, r_eve, r_night, weights,
+            solver_mode=mode, custom_workers=custom_workers
+        )
+        all_results.append(res)
+        
+    # Sert kısıtı 0 olanları filtrele
+    valid_results = [r for r in all_results if r['is_feasible']]
     
-    s_naif, w_naif, p_naif, score_naif, hard_naif, logs_naif, req_naif = res_naif
-    s_smart, w_smart, p_smart, score_smart, hard_smart, logs_smart, req_smart = res_smart
-    
-    # Eğer her ikisi de sert kısıtları sağlıyorsa, ceza puanı daha düşük olanı seç
-    if hard_naif == 0 and hard_smart == 0:
-        if score_naif <= score_smart:
-            return res_naif
-        else:
-            return res_smart
-    elif hard_naif == 0:
-        return res_naif
+    if valid_results:
+        # En düşük toplam ceza puanına sahip olanı seç
+        return min(valid_results, key=lambda r: r['final_score'])
     else:
-        return res_smart
+        # En az sert kısıt ihlali ve en düşük ceza puanına sahip olanı seç
+        return min(all_results, key=lambda r: (r['hard_violations_count'], r['final_score']))

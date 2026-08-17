@@ -3,9 +3,7 @@
   ALGORITHMS/MEMETIC_ALGORITHM_SOLVER.PY - MEMETİK ALGORİTMA (HYBRID GA + HC)
 ================================================================================
   Bu modül, Vardiya Çizelgeleme Problemi (NSP) için Memetik Algoritma (MA)
-  hibrit evrimsel ve lokal arama motorunu içerir.
-  
-  Mimari: Genetik Algoritma (Global Popülasyon Araması) + Hill Climbing (Lokal Cerrahi Tamir)
+  hibrit evrimsel ve lokal arama motorunu içerir. Canlı akış callback destekler.
 ================================================================================
 """
 
@@ -15,8 +13,9 @@ import random
 import numpy as np
 from algorithms.worker_manager import generate_worker_profiles
 from algorithms.greedy_solver import run_greedy_algorithm, get_best_greedy_initial_solution
-from algorithms.penalty_calculator import calculate_full_penalties, check_swap_feasibility, build_worker_request_details
+from algorithms.penalty_calculator import calculate_full_penalties, check_swap_feasibility, build_worker_request_details, audit_all_hard_constraints
 from algorithms.evolutionary_engine import initialize_population, tournament_selection
+from algorithms.solver_contract import build_standard_solver_result
 
 
 def local_search_refinement(chromosome, workers, n_workers, n_days, shift_reqs, weights, depth=5, eval_tracker=None):
@@ -48,7 +47,8 @@ def local_search_refinement(chromosome, workers, n_workers, n_days, shift_reqs, 
 
 def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, 
                          pop_size=50, generations=100, crossover_rate=0.85, 
-                         mutation_rate=0.05, local_search_depth=5, elitism_count=2, seed=42, custom_workers=None):
+                         mutation_rate=0.05, local_search_depth=5, elitism_count=2, seed=42, custom_workers=None,
+                         callback=None, stream_interval=2):
     """
     Memetik Algoritma (Hibrit Genetik + Tepeden Tırmanma Lokal Arama) Motoru.
     """
@@ -65,15 +65,16 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
     # Base Greedy Çözümü (Best-of-Heuristics ile En İyi Greedy Çözümü)
-    greedy_sched, workers, _, _, _, _, _ = get_best_greedy_initial_solution(
+    greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=custom_workers
     )
+    greedy_sched = greedy_seed['schedule']
+    workers = greedy_seed['workers']
 
     # 1. Popülasyon İlklendirmesi (Merkezi Evrimsel Motor)
     base_population = initialize_population(greedy_sched, pop_size, n_workers, n_days, workers, shift_reqs)
     population = []
     for chrom in base_population:
-        # İlk popülasyondaki bireylere hafif memetik lokal tamir uygula
         chrom_refined = local_search_refinement(chrom, workers, n_workers, n_days, shift_reqs, weights, depth=3, eval_tracker=eval_tracker)
         population.append(chrom_refined)
 
@@ -92,6 +93,9 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     best_chromosome = population[np.argmin(initial_scores)].copy()
     best_score = min(initial_scores)
 
+    if callback:
+        callback(0, best_score, initial_baseline_score, f"| Pop: {pop_size}")
+
     # 2. Evrimsel & Memetik İyileştirme Döngüsü
     for gen in range(generations):
         scores = []
@@ -104,10 +108,15 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
         if scores[min_idx] < best_score:
             best_score = scores[min_idx]
             best_chromosome = population[min_idx].copy()
+            if callback:
+                callback(gen + 1, best_score, float(np.mean(scores)), f"| Ort: {np.mean(scores):.0f}")
 
         best_score_history.append(best_score)
         avg_score_history.append(float(np.mean(scores)))
         diversity_history.append(float(np.std(scores)))
+
+        if callback and (gen % max(1, stream_interval) == 0):
+            callback(gen + 1, best_score, float(np.mean(scores)), f"| Ort: {np.mean(scores):.0f}")
 
         sorted_indices = np.argsort(scores)
         sorted_pop = [population[idx] for idx in sorted_indices]
@@ -148,7 +157,7 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
                         if check_swap_feasibility(temp_child, workers, mut_day, w1, w2, n_workers, n_days, shift_reqs):
                             child = temp_child
 
-            # --- MEMETİK LOKAL ARAMA İYİLEŞTİRMESİ (HILL CLIMBING TAMİRİ) ---
+            # Memetik Lokal Cerrahi Tamir (Lokal Arama Adımı)
             child = local_search_refinement(child, workers, n_workers, n_days, shift_reqs, weights, depth=local_search_depth, eval_tracker=eval_tracker)
             next_population.append(child)
 
@@ -156,28 +165,43 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
 
     final_penalties, final_score = calculate_full_penalties(best_chromosome, workers, n_workers, n_days, weights)
     eval_tracker[0] += 1
-    
+
+    if callback:
+        callback(generations, final_score, final_score, "| Bitti")
+
     improvement_rate = 0.0
     if initial_baseline_score > final_score and initial_baseline_score > 0:
         improvement_rate = round(((initial_baseline_score - final_score) / initial_baseline_score) * 100, 2)
 
     exec_time_ms = round((time.time() - start_time) * 1000, 1)
-    term_reason = f"🧬 Memetik Algoritma {generations} nesillik evrim ve Hill Climbing yerel tamir adımlarını başarıyla tamamladı."
+    term_reason = f"🧬 Belirlenen {generations} jenerasyonluk hibrit memetik süreç (Evrimsel Küresel Arama + {local_search_depth} Adımlık Mikro Hill Climbing) tamamlandı."
 
-    return {
-        'schedule': best_chromosome,
-        'workers': workers,
-        'initial_score': initial_baseline_score,
-        'final_score': final_score,
-        'improvement_rate': improvement_rate,
-        'eval_count': eval_tracker[0],
-        'exec_time_ms': exec_time_ms,
-        'penalties': final_penalties,
-        'best_score_history': best_score_history,
-        'avg_score_history': avg_score_history,
-        'diversity_history': diversity_history,
-        'generations_run': generations,
-        'pop_size': pop_size,
-        'termination_reason': term_reason,
-        'request_details': build_worker_request_details(best_chromosome, workers, n_days, weights)
-    }
+    request_details = build_worker_request_details(best_chromosome, workers, n_days, weights)
+    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
+        best_chromosome, workers, n_workers, n_days, shift_reqs
+    )
+
+    return build_standard_solver_result(
+        schedule=best_chromosome,
+        workers=workers,
+        is_feasible=is_feasible,
+        hard_violations_count=hard_viols_count,
+        hard_violation_logs=hard_violation_logs,
+        final_score=final_score,
+        initial_score=initial_baseline_score,
+        improvement_rate=improvement_rate,
+        exec_time_ms=exec_time_ms,
+        eval_count=eval_tracker[0],
+        total_iterations=generations,
+        termination_reason=term_reason,
+        penalties=final_penalties,
+        request_details=request_details,
+        score_history=best_score_history,
+        meta={
+            'generations': generations,
+            'population_size': pop_size,
+            'local_search_depth': local_search_depth,
+            'avg_score_history': avg_score_history,
+            'diversity_history': diversity_history
+        }
+    )

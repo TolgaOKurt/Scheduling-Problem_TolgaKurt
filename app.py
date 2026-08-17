@@ -7,7 +7,7 @@ import streamlit as st
 
 # Modüler Modül İçe Aktarımları
 from config import apply_custom_styles
-from global_state import render_global_sidebar
+from global_state import get_global_params, render_global_config_tab
 from views.tab1_nsp_intro import render_tab1
 from views.tab2_industries import render_tab2
 from views.tab3_steel_model import render_tab3
@@ -19,6 +19,7 @@ from views.tab8_simulated_annealing import render_tab8
 from views.tab9_genetic_algorithm import render_tab9
 from views.tab10_memetic_algorithm import render_tab10
 from views.tab11_tabu_search import render_tab11
+from views.tab12_vns import render_tab12
 from views.tab_comparison import render_tab_comparison
 
 
@@ -29,12 +30,12 @@ st.set_page_config(
     page_title="Hemşire Çizelgeleme Problemi & Sanayi Uygulamaları",
     page_icon="📅",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 apply_custom_styles()
 
-#(SOL MENÜ)
-global_params = render_global_sidebar()
+# Merkezi Global Model Parametreleri (Tüm sekmeler için tek kaynak)
+global_params = get_global_params()
 
 # 3. UYGULAMA BAŞLIĞI VE HERO BANNER
 st.markdown("""<div class="hero-container">
@@ -47,7 +48,7 @@ Yöneylem Araştırması (Operations Research) alanının en temel optimizasyon 
 
 
 # ==============================================================================
-# 4. 2 KATLI (2-TIER GRID) SEKME GEZİNTİSİ & LAZY EVALUATION
+# 4. ÇOK KATLI SEKME GEZİNTİSİ & LAZY EVALUATION
 # ==============================================================================
 if "active_tab" not in st.session_state:
     st.session_state["active_tab"] = "tab1"
@@ -74,6 +75,12 @@ with c1_3:
     if st.button("🏗️ Sekme 3: Çelik Tesis Kısıtları", key="btn_t3", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab3"
         st.rerun()
+
+# ARA SATIR: MERKEZİ MODEL & KADRO YÖNETİMİ (Tek başına satır - Tab 3'ten sonra, Tab 4'ten önce)
+btn_type_config = "primary" if st.session_state["active_tab"] == "tab_config" else "secondary"
+if st.button("⚙️ Merkezi Model Yapılandırması & Ortak Kadro Yönetimi (Global Parametreler)", key="btn_t_config", width="stretch", type=btn_type_config):
+    st.session_state["active_tab"] = "tab_config"
+    st.rerun()
 
 # 2. SATIR: DOĞRUDAN VE MATEMATİKSEL ÇÖZÜCÜLER (3 KOLON)
 c2_1, c2_2, c2_3 = st.columns(3)
@@ -117,8 +124,8 @@ with c3_3:
         st.session_state["active_tab"] = "tab9"
         st.rerun()
 
-# 4. SATIR: GELİŞMİŞ METASEZGİSEL ÇÖZÜCÜLER - BÖLÜM 2 (2 KOLON)
-c4_1, c4_2 = st.columns(2)
+# 4. SATIR: GELİŞMİŞ METASEZGİSEL ÇÖZÜCÜLER - BÖLÜM 2 (3 KOLON)
+c4_1, c4_2, c4_3 = st.columns(3)
 
 with c4_1:
     btn_type = "primary" if st.session_state["active_tab"] == "tab10" else "secondary"
@@ -130,6 +137,12 @@ with c4_2:
     btn_type = "primary" if st.session_state["active_tab"] == "tab11" else "secondary"
     if st.button("🤫 Sekme 11: Tabu Search", key="btn_t11", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab11"
+        st.rerun()
+
+with c4_3:
+    btn_type = "primary" if st.session_state["active_tab"] == "tab12" else "secondary"
+    if st.button("🔄 Sekme 12: Variable Neighborhood Search (VNS)", key="btn_t12", width="stretch", type=btn_type):
+        st.session_state["active_tab"] = "tab12"
         st.rerun()
 
 # 5. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
@@ -149,6 +162,8 @@ elif curr == "tab2":
     render_tab2()
 elif curr == "tab3":
     render_tab3()
+elif curr == "tab_config":
+    render_global_config_tab()
 elif curr == "tab4":
     render_tab4(global_params)
 elif curr == "tab5":
@@ -165,5 +180,7 @@ elif curr == "tab10":
     render_tab10(global_params)
 elif curr == "tab11":
     render_tab11(global_params)
+elif curr == "tab12":
+    render_tab12(global_params)
 elif curr == "tab_comparison":
     render_tab_comparison(global_params)

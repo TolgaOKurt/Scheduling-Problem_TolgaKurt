@@ -17,7 +17,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
-    render_request_details_expander
+    render_request_details_expander,
+    render_hard_constraints_status_card,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab7(params):
@@ -100,20 +104,15 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
 
     # HESAPLAMA YÜKÜ & ÖN-ANALİZ PANELİ
     cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
-    hc_est_calls = int(max_iter * 0.5)
+    # Komşuluk takaslarında farklı vardiya ve sert kısıt uygunluk olasılığı ~%28'dir
+    hc_est_calls = int(max_iter * 0.28)
     hc_total_ms = hc_est_calls * cost_ms
     hc_time_str = f"{hc_total_ms/1000:.2f} sn" if hc_total_ms >= 1000 else f"{hc_total_ms:.0f} ms"
 
     st.markdown("#### 🧮 İterasyon & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
     c_est1, c_est2 = st.columns(2)
     with c_est1:
-        st.metric(
-            label="📊 Tahmini Ceza Değerlendirme",
-            value=f"~{hc_est_calls:,} Çağrı",
-            delta=f"{cost_ms:.2f} ms * {hc_est_calls:,} = {hc_time_str}",
-            delta_color="off",
-            help="Her sert kısıt sağlayan geçerli komşu takasında 1 tam ceza puanı hesaplanır."
-        )
+        render_evaluator_cost_badge(hc_est_calls, cost_ms, label="Tahmini Ceza Değerlendirme")
     with c_est2:
         st.metric(label="🎯 Maksimum İterasyon Limiti", value=f"{max_iter:,} Adım", help="Yerel aramada denenecek maksimum komşuluk sayısı.")
 
@@ -126,27 +125,52 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
         return
 
     if run_btn:
-        with st.spinner("⏳ Hill Climbing Yerel Araması Çalıştırılıyor... Lütfen Bekleyiniz..."):
-            results = run_hill_climbing(
-                n_workers=num_workers,
-                n_days=num_days,
-                r_day=req_day,
-                r_eve=req_eve,
-                r_night=req_night,
-                weights=weights,
-                max_iterations=max_iter,
-                seed=42,
-                custom_workers=custom_workers
-            )
-            st.session_state["res_t7"] = results
+        stream_enabled = params.get('live_stream_enabled', True)
+        stream_interval = params.get('live_stream_interval', 50)
+        
+        live_placeholder = st.empty()
+        tracker = LiveStreamTracker(
+            placeholder=live_placeholder,
+            title="Hill Climbing Yerel Arama",
+            max_steps=max_iter,
+            unit_name="İterasyon",
+            enabled=stream_enabled,
+            stream_interval=stream_interval,
+            key_prefix="t7_tracker"
+        )
+        
+        results = run_hill_climbing(
+            n_workers=num_workers,
+            n_days=num_days,
+            r_day=req_day,
+            r_eve=req_eve,
+            r_night=req_night,
+            weights=weights,
+            max_iterations=max_iter,
+            seed=42,
+            custom_workers=custom_workers,
+            callback=tracker.update if stream_enabled else None,
+            stream_interval=stream_interval
+        )
+        tracker.finish(results.get('total_iterations', max_iter), results.get('final_score'))
+        results['stream_data'] = tracker.get_stream_data()
+        st.session_state["res_t7"] = results
     else:
         results = st.session_state["res_t7"]
+        if params.get('live_stream_enabled', True) and 'stream_data' in results:
+            render_live_stream_summary(results['stream_data'])
 
-    # --- ÇALIŞMAYI BİTİRME NEDENİ BİLDİRİMİ ---
+    # --- BİTİRME NEDENİ VE SERT KISIT UYGUNLUK BİLDİRİMİ ---
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
+    render_hard_constraints_status_card(
+        results.get('is_feasible', True),
+        results.get('hard_violations_count', 0),
+        results.get('hard_violation_logs', []),
+        solver_name="Hill Climbing (Tepeden Tırmanma)"
+    )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -167,21 +191,35 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
         </div>""", unsafe_allow_html=True)
 
     with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Kabul Edilen Hamle</div>
-        <div class="metric-value" style="color: #7c3aed;">{results['accepted_moves']} / {results['total_iterations']}</div>
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
         </div>""", unsafe_allow_html=True)
 
+    meta = results.get('meta', {})
+
     with m5:
+        acc_m = meta.get('accepted_moves', results.get('accepted_moves', 0))
+        tot_it = results.get('total_iterations', len(results.get('score_history', results.get('history', []))))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Kabul Edilen Hamle</div>
+        <div class="metric-value" style="color: #7c3aed;">{acc_m} / {tot_it}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         eval_c = results.get('eval_count', '-')
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
         <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
         </div>""", unsafe_allow_html=True)
 
-    with m6:
+    with m7:
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Arama Süresi</div>
+        <div class="metric-label">Hesaplama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
         </div>""", unsafe_allow_html=True)
 
@@ -199,9 +237,9 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
             "En Uygun (Optimal) Çözüm Garantisi",
             "Hesaplama Esnekliği"
         ],
-        "Sekme 5: CSP Backtracking": ["Kısıt Tatmin (AI)", "✅ %100 Kusursuz Garanti", "❌ Yok (İlk çizelgede kalır)", "Arama Ağacı (DFS)", "❌ Yok (Yalnız Feasible)", "⏱️ Milisaniyeler"],
-        "Sekme 6: ILP / MILP": ["Matematiksel Programlama", "✅ %100 Kusursuz Garanti", "🏆 Tam Optimizasyon (min Z*)", "Dal-Sınır (Branch & Bound)", "🏆 MATEMATİKSEL GARANTİ", "⏱️ Saniyeler"],
-        "Sekme 7: Hill Climbing": ["Metasezgisel (Local Search)", "✅ %100 Kusursuz Garanti", "📈 İteratif Hamle İyileştirmesi", "Komşuluk Araması (Swap Move)", "⚠️ Yerel Optimum (Local Min)", "⚡ Çok Hızlı (İteratif)"]
+        "Sekme 5: CSP Backtracking": ["Kısıt Tatmin (AI)", "✅ %100 Kusursuz Garanti (İmkansızsa çözüm yok der)", "❌ Yok (İlk çizelgede kalır)", "Arama Ağacı (DFS)", "❌ Yok (Yalnız Feasible)", "⏱️ Milisaniyeler"],
+        "Sekme 6: ILP / MILP": ["Matematiksel Programlama", "✅ %100 Kusursuz Garanti (İmkansızsa Infeasible der)", "🏆 Tam Optimizasyon (min Z*)", "Dal-Sınır (Branch & Bound)", "🏆 MATEMATİKSEL GARANTİ", "⏱️ Saniyeler"],
+        "Sekme 7: Hill Climbing": ["Metasezgisel (Local Search)", "⚠️ Sezgisel Bağımlı (İmkansızsa İhlal İçerebilir)", "📈 İteratif Hamle İyileştirmesi", "Komşuluk Araması (Swap Move)", "⚠️ Yerel Optimum (Local Min)", "⚡ Çok Hızlı (İteratif)"]
     })
 
     st.dataframe(df_3way_hc, width="stretch", hide_index=True)
@@ -213,9 +251,10 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
 
     # 1. İTERASYON BAZLI CEZA PUANI DÜŞÜŞ YAKINSAMA GRAFİĞİ
     st.markdown("##### 1️⃣ İterasyon Bazlı Ceza Puanı Düşüş & Yakınsama Eğrisi (Convergence Curve)")
+    score_hist = results.get('score_history', results.get('history', []))
     df_history = pd.DataFrame({
-        "İterasyon": list(range(len(results['history']))),
-        "Toplam Ceza Puanı (Z)": results['history']
+        "İterasyon": list(range(len(score_hist))),
+        "Toplam Ceza Puanı (Z)": score_hist
     })
 
     fig_conv = px.line(

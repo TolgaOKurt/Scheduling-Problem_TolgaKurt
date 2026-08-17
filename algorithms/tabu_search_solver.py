@@ -21,13 +21,14 @@ import random
 import numpy as np
 from algorithms.worker_manager import generate_worker_profiles
 from algorithms.greedy_solver import run_greedy_algorithm, get_best_greedy_initial_solution
-from algorithms.penalty_calculator import calculate_full_penalties, check_hard_constraints_single_day, build_worker_request_details
+from algorithms.penalty_calculator import calculate_full_penalties, check_hard_constraints_single_day, build_worker_request_details, audit_all_hard_constraints
+from algorithms.solver_contract import build_standard_solver_result
 
 
 def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
                     max_iterations=1000, tabu_tenure=15, neighborhood_size=20,
                     use_aspiration=True, use_diversification=False,
-                    seed=42, custom_workers=None):
+                    seed=42, custom_workers=None, callback=None, stream_interval=20):
     """
     Yüksek Performanslı Tabu Search (Tabu Araması) Optimizasyon Motoru.
     """
@@ -43,10 +44,12 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
     # 1. Başlangıç Çözümü: En İyi Greedy Çözücüsü (Best-of-Heuristics)
-    greedy_sched, workers, _, _, _, _, _ = get_best_greedy_initial_solution(
+    greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights,
         custom_workers=custom_workers
     )
+    greedy_sched = greedy_seed['schedule']
+    workers = greedy_seed['workers']
 
     current_schedule = greedy_sched.copy()
     current_penalties, current_score = calculate_full_penalties(current_schedule, workers, n_workers, n_days, weights)
@@ -243,12 +246,17 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
             best_schedule = current_schedule.copy()
             accepted_moves += 1
             no_improve_streak = 0
+            if callback:
+                callback(it + 1, best_score, current_score, f"| Tabu: {(tabu_matrix > it).sum()}")
         else:
             no_improve_streak += 1
 
         best_score_history.append(best_score)
         curr_score_history.append(current_score)
         tabu_size_history.append((tabu_matrix > it).sum())
+
+        if callback and (it % stream_interval == 0):
+            callback(it + 1, best_score, current_score, f"| Tabu: {(tabu_matrix > it).sum()}")
 
         # Erken Durdurma Kriterleri
         if best_score == 0:
@@ -262,6 +270,9 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
     if not termination_reason:
         termination_reason = f"🏁 İTERASYON LİMİTİNE ULAŞILDI (Maksimum Hamle Sınırı: K = {max_iterations})"
 
+    if callback:
+        callback(len(best_score_history), best_score, current_score, "| Bitti")
+
     exec_time = round((time.time() - start_time) * 1000, 2)
     final_penalties, final_total = calculate_full_penalties(best_schedule, workers, n_workers, n_days, weights)
     eval_count += 1
@@ -271,24 +282,32 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
         improvement_rate = round(((initial_score - final_total) / initial_score) * 100, 1)
 
     request_details = build_worker_request_details(best_schedule, workers, n_days, weights)
+    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
+        best_schedule, workers, n_workers, n_days, shift_reqs
+    )
 
-    return {
-        'initial_score': initial_score,
-        'final_score': final_total,
-        'improvement_rate': improvement_rate,
-        'accepted_moves': accepted_moves,
-        'aspiration_count': aspiration_count,
-        'aspiration_events': aspiration_events,
-        'total_iterations': len(best_score_history),
-        'tabu_tenure': tabu_tenure,
-        'eval_count': eval_count,
-        'termination_reason': termination_reason,
-        'schedule': best_schedule,
-        'workers': workers,
-        'exec_time_ms': exec_time,
-        'penalties': final_penalties,
-        'best_score_history': best_score_history,
-        'curr_score_history': curr_score_history,
-        'tabu_size_history': tabu_size_history,
-        'request_details': request_details
-    }
+    return build_standard_solver_result(
+        schedule=best_schedule,
+        workers=workers,
+        is_feasible=is_feasible,
+        hard_violations_count=hard_viols_count,
+        hard_violation_logs=hard_violation_logs,
+        final_score=final_total,
+        initial_score=initial_score,
+        improvement_rate=improvement_rate,
+        exec_time_ms=exec_time,
+        eval_count=eval_count,
+        total_iterations=len(best_score_history),
+        termination_reason=termination_reason,
+        penalties=final_penalties,
+        request_details=request_details,
+        score_history=best_score_history,
+        meta={
+            'accepted_moves': accepted_moves,
+            'aspiration_count': aspiration_count,
+            'aspiration_events': aspiration_events,
+            'tabu_tenure': tabu_tenure,
+            'curr_score_history': curr_score_history,
+            'tabu_size_history': tabu_size_history
+        }
+    )

@@ -13,7 +13,8 @@ import time
 import numpy as np
 import pandas as pd
 from algorithms.worker_manager import generate_worker_profiles
-from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details
+from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details, audit_all_hard_constraints
+from algorithms.solver_contract import build_standard_solver_result
 
 class CSPBacktrackingSolver:
     def __init__(self, n_workers, n_days, r_day, r_eve, r_night, max_backtracks=3000, custom_workers=None, weights=None):
@@ -64,31 +65,61 @@ class CSPBacktrackingSolver:
             assigned_skills.update(w['skills'])
         return req_skills.issubset(assigned_skills)
 
-    def solve(self):
+    def solve(self, callback=None, stream_interval=50):
         """Backtracking (Geri İzleme) Arama Algoritması."""
         self.start_time = time.time()
         self.backtrack_count = 0
         self.nodes_explored = 0
         
-        success = self._backtrack(day=0, shift_idx=1)
+        if callback:
+            callback(0, 0, 0, "| Başlangıç")
+            
+        success = self._backtrack(day=0, shift_idx=1, callback=callback, stream_interval=stream_interval)
         self.execution_time = (time.time() - self.start_time) * 1000 # ms
         
-        penalties = self._calculate_soft_penalties()
+        if callback:
+            callback(self.backtrack_count, 0, 0, "| Bitti")
+        
+        is_feas, hard_viols_cnt, hard_logs = audit_all_hard_constraints(
+            self.schedule, self.workers, self.n_workers, self.n_days, self.shift_reqs
+        )
+        
+        if success and is_feas:
+            penalties = self._calculate_soft_penalties()
+            final_score = sum(penalties.values())
+            term_reason = "Tüm sert kısıtlar sağlanarak geçerli çizelge bulundu."
+        elif self.backtrack_count >= self.max_backtracks:
+            penalties = self._calculate_soft_penalties()
+            final_score = 99999
+            term_reason = f"Maksimum geri izleme limitine ({self.max_backtracks:,}) ulaşıldı."
+        else:
+            penalties = self._calculate_soft_penalties()
+            final_score = 99999
+            term_reason = "Arama ağacı tarandı ancak geçerli bir kombinasyon bulunamadı."
+            
         request_details = build_worker_request_details(self.schedule, self.workers, self.n_days, self.weights)
         
-        return {
-            'success': success,
-            'schedule': self.schedule,
-            'workers': self.workers,
-            'backtracks': self.backtrack_count,
-            'nodes_explored': self.nodes_explored,
-            'exec_time_ms': round(self.execution_time, 2),
-            'penalties': penalties,
-            'total_penalty': sum(penalties.values()),
-            'final_score': sum(penalties.values()),
-            'eval_count': 1,
-            'request_details': request_details
-        }
+        return build_standard_solver_result(
+            schedule=self.schedule,
+            workers=self.workers,
+            is_feasible=bool(success and is_feas),
+            hard_violations_count=hard_viols_cnt,
+            hard_violation_logs=hard_logs,
+            final_score=final_score,
+            initial_score=final_score,
+            improvement_rate=0.0,
+            exec_time_ms=self.execution_time,
+            eval_count=1,
+            total_iterations=self.backtrack_count,
+            termination_reason=term_reason,
+            penalties=penalties,
+            request_details=request_details,
+            score_history=[float(final_score)],
+            meta={
+                'backtracks': self.backtrack_count,
+                'nodes_explored': self.nodes_explored
+            }
+        )
 
     def _generate_candidate_groups(self, day, shift_idx, needed, target_posta):
         """Çeşitlemeli aday grupları türetir (Backtracking arama ağacı dallanması için)."""
@@ -156,7 +187,7 @@ class CSPBacktrackingSolver:
                 
         return group if len(group) == needed else None
 
-    def _backtrack(self, day, shift_idx):
+    def _backtrack(self, day, shift_idx, callback=None, stream_interval=50):
         if self.backtrack_count >= self.max_backtracks:
             return False
             
@@ -166,7 +197,7 @@ class CSPBacktrackingSolver:
         self.nodes_explored += 1
         
         if shift_idx > 3:
-            return self._backtrack(day + 1, shift_idx=1)
+            return self._backtrack(day + 1, shift_idx=1, callback=callback, stream_interval=stream_interval)
             
         needed = self.shift_reqs[shift_idx]
         postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
@@ -176,17 +207,21 @@ class CSPBacktrackingSolver:
         
         if not groups_to_try:
             self.backtrack_count += 1
+            if callback and self.backtrack_count % stream_interval == 0:
+                callback(self.backtrack_count, 0, 0, f"| Gün: {day+1}/{self.n_days}")
             return False
 
         for chosen_group in groups_to_try:
             for w in chosen_group:
                 self.schedule[w['id'], day] = shift_idx
                 
-            if self._backtrack(day, shift_idx + 1):
+            if self._backtrack(day, shift_idx + 1, callback=callback, stream_interval=stream_interval):
                 return True
                 
             # GERİ İZLEME (BACKTRACK)
             self.backtrack_count += 1
+            if callback and self.backtrack_count % stream_interval == 0:
+                callback(self.backtrack_count, 0, 0, f"| Gün: {day+1}/{self.n_days}")
             for w in chosen_group:
                 self.schedule[w['id'], day] = 0
                 

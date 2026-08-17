@@ -18,7 +18,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
-    render_request_details_expander
+    render_request_details_expander,
+    render_hard_constraints_status_card,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab9(params):
@@ -75,11 +79,9 @@ def render_tab9(params):
     custom_workers = params['custom_workers']
 
     # --- MATEMATİKSEL ÖN-ANALİZ TAHMİN PANELİ ---
-    total_evaluations = pop_size + generations * (pop_size - elitism_count)
-    # Deneysel Benchmark Ölçümü: 1 kromozom değerlendirmesi N işçi ve D gün bazında ~0.00157 ms
-    est_ga_cpu_ms = round(total_evaluations * num_workers * num_days * 0.00157, 1)
-
     cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
+    # Her nesilde tüm popülasyon (P) + başlangıç (P) + bitiş (1) değerlendirilir
+    total_evaluations = (generations + 1) * pop_size + 1
     ga_total_ms = total_evaluations * cost_ms
     ga_time_str = f"{ga_total_ms/1000:.2f} sn" if ga_total_ms >= 1000 else f"{ga_total_ms:.0f} ms"
 
@@ -87,13 +89,7 @@ def render_tab9(params):
 
     pred_c1, pred_c2 = st.columns(2)
     with pred_c1:
-        st.metric(
-            label="Tahmini Ceza Değerlendirme (P × (1+G))",
-            value=f"{total_evaluations:,} Çağrı",
-            delta=f"{cost_ms:.2f} ms * {total_evaluations:,} = {ga_time_str}",
-            delta_color="off",
-            help="Tüm jenerasyonlar boyunca popülasyondaki kromozomların toplam ceza fonksiyonu değerlendirme sayısı."
-        )
+        render_evaluator_cost_badge(total_evaluations, cost_ms, label="Tahmini Ceza Değerlendirme (P × (1+G))")
     with pred_c2:
         st.metric(
             label="Elitizm Koruma Oranı",
@@ -110,31 +106,57 @@ def render_tab9(params):
         return
 
     if run_btn:
-        with st.spinner("⏳ Genetik Algoritma Popülasyonu Evrimleştiriliyor... Lütfen Bekleyiniz..."):
-            results = run_genetic_algorithm(
-                n_workers=num_workers,
-                n_days=num_days,
-                r_day=req_day,
-                r_eve=req_eve,
-                r_night=req_night,
-                weights=weights,
-                pop_size=pop_size,
-                generations=generations,
-                crossover_rate=crossover_rate,
-                mutation_rate=mutation_rate,
-                elitism_count=elitism_count,
-                seed=42,
-                custom_workers=custom_workers
-            )
-            st.session_state["res_t9"] = results
+        stream_enabled = params.get('live_stream_enabled', True)
+        stream_interval = max(1, int(params.get('live_stream_interval', 50) / 25))
+        
+        live_placeholder = st.empty()
+        tracker = LiveStreamTracker(
+            placeholder=live_placeholder,
+            title="Genetik Algoritma Evrimsel Arama",
+            max_steps=generations,
+            unit_name="Nesil",
+            enabled=stream_enabled,
+            stream_interval=stream_interval,
+            key_prefix="t9_tracker"
+        )
+        
+        results = run_genetic_algorithm(
+            n_workers=num_workers,
+            n_days=num_days,
+            r_day=req_day,
+            r_eve=req_eve,
+            r_night=req_night,
+            weights=weights,
+            pop_size=pop_size,
+            generations=generations,
+            crossover_rate=crossover_rate,
+            mutation_rate=mutation_rate,
+            elitism_count=elitism_count,
+            seed=42,
+            custom_workers=custom_workers,
+            callback=tracker.update if stream_enabled else None,
+            stream_interval=stream_interval
+        )
+        tracker.finish(generations, results.get('final_score'))
+        results['generations_run'] = generations
+        results['stream_data'] = tracker.get_stream_data()
+        st.session_state["res_t9"] = results
     else:
         results = st.session_state["res_t9"]
+        if params.get('live_stream_enabled', True) and 'stream_data' in results:
+            render_live_stream_summary(results['stream_data'])
 
-    # --- ÇALIŞMAYI BİTİRME NEDENİ BİLDİRİMİ ---
+    # --- BİTİRME NEDENİ VE SERT KISIT UYGUNLUK BİLDİRİMİ ---
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
+    render_hard_constraints_status_card(
+        results.get('is_feasible', True),
+        results.get('hard_violations_count', 0),
+        results.get('hard_violation_logs', []),
+        solver_name="Genetik Algoritma (GA)"
+    )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -155,19 +177,32 @@ def render_tab9(params):
         </div>""", unsafe_allow_html=True)
 
     with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Jenerasyon</div>
-        <div class="metric-value" style="color: #8b5cf6;">{results['generations_run']} Nesil</div>
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
         </div>""", unsafe_allow_html=True)
 
+    meta = results.get('meta', {})
+
     with m5:
+        tot_it = results.get('total_iterations', results.get('generations_run', generations))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Jenerasyon</div>
+        <div class="metric-value" style="color: #8b5cf6;">{tot_it} Nesil</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         eval_c = results.get('eval_count', total_evaluations)
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
         <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
         </div>""", unsafe_allow_html=True)
 
-    with m6:
+    with m7:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Evrim Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -178,7 +213,10 @@ def render_tab9(params):
     # --- GÖRSEL GRAFİKLER ---
     st.markdown("### 🎨 Genetik Algoritma Evrimsel Yakınsama & Analitik Grafikler")
 
-    gens = list(range(1, len(results['best_score_history']) + 1))
+    score_hist = results.get('score_history', results.get('best_score_history', []))
+    gens = list(range(1, len(score_hist) + 1))
+    avg_scores = meta.get('avg_score_history', results.get('avg_score_history', score_hist))
+    div_scores = meta.get('diversity_history', results.get('diversity_history', [0.0] * len(gens)))
     
     g_col1, g_col2 = st.columns(2)
 
@@ -186,12 +224,12 @@ def render_tab9(params):
         st.markdown("##### 1️⃣ Jenerasyon Bazlı Evrimsel Yakınsama Grafiği (Best vs Avg Score)")
         fig_ga_conv = go.Figure()
         fig_ga_conv.add_trace(go.Scatter(
-            x=gens, y=results['best_score_history'],
+            x=gens, y=score_hist,
             name="En İyi Birey Skoru Z_best",
             line=dict(color="#059669", width=2.5)
         ))
         fig_ga_conv.add_trace(go.Scatter(
-            x=gens, y=results['avg_score_history'],
+            x=gens, y=avg_scores,
             name="Popülasyon Ortalama Skoru Z_avg",
             line=dict(color="#8b5cf6", width=2, dash="dash")
         ))
@@ -206,7 +244,7 @@ def render_tab9(params):
     with g_col2:
         st.markdown("##### 2️⃣ Popülasyon Genetik Çeşitlilik İndeksi (Standart Sapma)")
         fig_div = px.line(
-            x=gens, y=results['diversity_history'],
+            x=gens, y=div_scores,
             labels={"x": "Jenerasyon", "y": "Popülasyon Çeşitliliği (Std Dev)"},
             line_shape="linear"
         )

@@ -17,7 +17,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
-    render_request_details_expander
+    render_request_details_expander,
+    render_hard_constraints_status_card,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab11(params):
@@ -120,13 +124,7 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
 
     pred_c1, pred_c2 = st.columns(2)
     with pred_c1:
-        st.metric(
-            label="Tahmini Ceza Değerlendirme (K × N_size)",
-            value=f"{total_evaluations:,} Çağrı",
-            delta=f"{cost_ms:.2f} ms * {total_evaluations:,} = {ts_time_str}",
-            delta_color="off",
-            help="İterasyonlar boyunca değerlendirilecek geçerli takas aday sayısı."
-        )
+        render_evaluator_cost_badge(total_evaluations, cost_ms, label="Tahmini Ceza Değerlendirme (K × N_size)")
     with pred_c2:
         st.metric(
             label="Tabu Listesi Yasaklama Süresi (L)",
@@ -143,31 +141,56 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         return
 
     if run_btn:
-        with st.spinner("⏳ Tabu Search (Tabu Listesi & Aspirasyon Arama Motoru) Çalıştırılıyor... Lütfen Bekleyiniz..."):
-            results = run_tabu_search(
-                n_workers=num_workers,
-                n_days=num_days,
-                r_day=req_day,
-                r_eve=req_eve,
-                r_night=req_night,
-                weights=weights,
-                max_iterations=max_iter,
-                tabu_tenure=tabu_tenure,
-                neighborhood_size=neighborhood_size,
-                use_aspiration=use_aspiration,
-                use_diversification=use_diversification,
-                seed=42,
-                custom_workers=custom_workers
-            )
-            st.session_state["res_t11"] = results
+        stream_enabled = params.get('live_stream_enabled', True)
+        stream_interval = max(10, int(params.get('live_stream_interval', 50) / 2))
+        
+        live_placeholder = st.empty()
+        tracker = LiveStreamTracker(
+            placeholder=live_placeholder,
+            title="Tabu Search Hafıza Tabanlı Arama",
+            max_steps=max_iter,
+            unit_name="İterasyon",
+            enabled=stream_enabled,
+            stream_interval=stream_interval,
+            key_prefix="t11_tracker"
+        )
+        
+        results = run_tabu_search(
+            n_workers=num_workers,
+            n_days=num_days,
+            r_day=req_day,
+            r_eve=req_eve,
+            r_night=req_night,
+            weights=weights,
+            max_iterations=max_iter,
+            tabu_tenure=tabu_tenure,
+            neighborhood_size=neighborhood_size,
+            use_aspiration=use_aspiration,
+            use_diversification=use_diversification,
+            seed=42,
+            custom_workers=custom_workers,
+            callback=tracker.update if stream_enabled else None,
+            stream_interval=stream_interval
+        )
+        tracker.finish(results.get('total_iterations', max_iter), results.get('final_score'))
+        results['stream_data'] = tracker.get_stream_data()
+        st.session_state["res_t11"] = results
     else:
         results = st.session_state["res_t11"]
+        if params.get('live_stream_enabled', True) and 'stream_data' in results:
+            render_live_stream_summary(results['stream_data'])
 
-    # --- BİTİRME NEDENİ BİLDİRİMİ ---
+    # --- BİTİRME NEDENİ VE SERT KISIT UYGUNLUK BİLDİRİMİ ---
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
+    render_hard_constraints_status_card(
+        results.get('is_feasible', True),
+        results.get('hard_violations_count', 0),
+        results.get('hard_violation_logs', []),
+        solver_name="Tabu Search (Tabu Araması)"
+    )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
+    m1, m2, m3, m4, m5, m6, m7, m8 = st.columns(8)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -188,25 +211,39 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         </div>""", unsafe_allow_html=True)
 
     with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Kabul Edilen</div>
-        <div class="metric-value" style="color: #8b5cf6;">{results['accepted_moves']}</div>
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
         </div>""", unsafe_allow_html=True)
 
+    meta = results.get('meta', {})
+
     with m5:
+        tot_acc = meta.get('accepted_moves', results.get('accepted_moves', 0))
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Aspirasyon</div>
-        <div class="metric-value" style="color: #d97706;">{results['aspiration_count']} Kez</div>
+        <div class="metric-label">Kabul Edilen</div>
+        <div class="metric-value" style="color: #8b5cf6;">{tot_acc}</div>
         </div>""", unsafe_allow_html=True)
 
     with m6:
+        asp_c = meta.get('aspiration_count', results.get('aspiration_count', 0))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Aspirasyon</div>
+        <div class="metric-value" style="color: #d97706;">{asp_c} Kez</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m7:
         eval_c = results.get('eval_count', total_evaluations)
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Ceza Çağrısı</div>
         <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
         </div>""", unsafe_allow_html=True)
 
-    with m7:
+    with m8:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Arama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -217,7 +254,10 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
     # --- GÖRSEL GRAFİKLER ---
     st.markdown("### 🎨 Tabu Search Yakınsama & Analitik Grafikler")
 
-    iters = list(range(1, len(results['best_score_history']) + 1))
+    score_hist = results.get('score_history', results.get('best_score_history', []))
+    iters = list(range(1, len(score_hist) + 1))
+    curr_scores = meta.get('curr_score_history', results.get('curr_score_history', score_hist))
+    tabu_sizes = meta.get('tabu_size_history', results.get('tabu_size_history', [0] * len(iters)))
     
     g_col1, g_col2 = st.columns(2)
 
@@ -225,12 +265,12 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         st.markdown("##### 1️⃣ İterasyon Bazlı Tabu Arama & Vadi Aşımı Grafiği (Best vs Current Score)")
         fig_ts_conv = go.Figure()
         fig_ts_conv.add_trace(go.Scatter(
-            x=iters, y=results['best_score_history'],
+            x=iters, y=score_hist,
             name="Global En İyi Skor Z_best",
             line=dict(color="#059669", width=2.5)
         ))
         fig_ts_conv.add_trace(go.Scatter(
-            x=iters, y=results['curr_score_history'],
+            x=iters, y=curr_scores,
             name="Mevcut Çözüm Skoru Z_current (Vadi Çıkışları)",
             line=dict(color="#2563eb", width=1.5, dash="dot"),
             opacity=0.75
@@ -247,18 +287,19 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         st.markdown("##### 2️⃣ Aktif Tabu Listesi Boyutu & Aspirasyon Tetiklenme Noktaları")
         fig_tabu_size = go.Figure()
         fig_tabu_size.add_trace(go.Scatter(
-            x=iters, y=results['tabu_size_history'],
+            x=iters, y=tabu_sizes,
             name="Aktif Tabu Hücre Sayısı",
             line=dict(color="#d97706", width=2)
         ))
-        if len(results.get('aspiration_events', [])) > 0:
+        asp_events = meta.get('aspiration_events', results.get('aspiration_events', []))
+        if len(asp_events) > 0:
             asp_iters = []
-            for ev in results['aspiration_events']:
+            for ev in asp_events:
                 it_num = ev['iteration'] if isinstance(ev, dict) else (ev + 1 if isinstance(ev, int) else None)
-                if it_num is not None and 1 <= it_num <= len(results['tabu_size_history']):
+                if it_num is not None and 1 <= it_num <= len(tabu_sizes):
                     asp_iters.append(it_num)
             if len(asp_iters) > 0:
-                asp_scores = [results['tabu_size_history'][it - 1] for it in asp_iters]
+                asp_scores = [tabu_sizes[it - 1] for it in asp_iters]
                 fig_tabu_size.add_trace(go.Scatter(
                     x=asp_iters, y=asp_scores,
                     mode="markers",

@@ -209,7 +209,7 @@ def render_tab2():
             margin=dict(l=40, r=40, t=40, b=30)
         )
 
-        st.plotly_chart(fig_radar, width="stretch")
+        st.plotly_chart(fig_radar, width="stretch", key="t2_fig_radar")
 
     with r_col2:
         st.markdown("""

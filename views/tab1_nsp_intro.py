@@ -115,8 +115,8 @@ NSP'nin yöneylem araştırması literatüründeki dönüm noktaları:
         st.markdown("""
         NSP, Hesaplamalı Karmaşıklık Teorisinde **NP-Hard (Non-deterministic Polynomial-time Hard)** sınıfına aittir.
         
-        $N$ çalışan, $D$ gün ve $K$ olası vardiya durumu ($K=4$: Gündüz, Akşam, Gece, İzin) içeren bir modelde olası tüm çizelgelerin kombinatoryal arama uzayı boyutu:
-        """)
+        <i>N</i> çalışan, <i>D</i> gün ve <i>K</i> olası vardiya durumu (<i>K</i> = 4: Gündüz, Akşam, Gece, İzin) içeren bir modelde olası tüm çizelgelerin kombinatoryal arama uzayı boyutu:
+        """, unsafe_allow_html=True)
         st.latex(r"|\Omega| = K^{N \times D} = 4^{N \times D}")
         st.markdown("""
         Personel veya gün sayısı doğrusal olarak arttığında, incelenmesi gereken olası çizelge sayısı **üstel (eksponansiyel)** olarak patlar. 

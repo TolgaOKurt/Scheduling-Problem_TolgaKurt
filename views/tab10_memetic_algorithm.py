@@ -18,7 +18,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
-    render_request_details_expander
+    render_request_details_expander,
+    render_hard_constraints_status_card,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab10(params):
@@ -77,12 +81,10 @@ def render_tab10(params):
     custom_workers = params['custom_workers']
 
     # --- HESAPLAMA VE SÜRE TAHMİNİ PANELİ ---
-    total_evaluations = pop_size + generations * (pop_size - elitism_count) * (1 + local_depth * 0.2)
-    # Ampirik Benchmark Ölçümü: 1 Memetik evrim + lokal takas adımı hücre başına ~0.00373 ms
-    est_ma_cpu_ms = round(total_evaluations * num_workers * num_days * 0.00373, 1)
-
     cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
-    ma_est_calls = int(total_evaluations)
+    # Her jenerasyonda: Popülasyon skorlaması (P) + Çocuk başına lokal tırmanma [(P - E) * (1 + 0.35 * Derinlik)]
+    total_evaluations = int(pop_size + generations * (pop_size + (pop_size - elitism_count) * (1.0 + local_depth * 0.35)))
+    ma_est_calls = total_evaluations
     ma_total_ms = ma_est_calls * cost_ms
     ma_time_str = f"{ma_total_ms/1000:.2f} sn" if ma_total_ms >= 1000 else f"{ma_total_ms:.0f} ms"
 
@@ -90,13 +92,7 @@ def render_tab10(params):
 
     pred_c1, pred_c2 = st.columns(2)
     with pred_c1:
-        st.metric(
-            label="Tahmini Ceza Değerlendirme (GA + Tamir)",
-            value=f"{ma_est_calls:,} Çağrı",
-            delta=f"{cost_ms:.2f} ms * {ma_est_calls:,} = {ma_time_str}",
-            delta_color="off",
-            help="Popülasyon evrimi ve Hill Climbing mikro-tamir adımları dahil toplam ceza hesaplama çağrısı."
-        )
+        render_evaluator_cost_badge(ma_est_calls, cost_ms, label="Tahmini Ceza Değerlendirme (GA + Tamir)")
     with pred_c2:
         st.metric(
             label="Elitizm Koruma Oranı",
@@ -113,32 +109,58 @@ def render_tab10(params):
         return
 
     if run_btn:
-        with st.spinner("⏳ Memetik Algoritma (GA + Hill Climbing) Evrimleştiriliyor ve Yerel Olarak Tamir Ediliyor... Lütfen Bekleyiniz..."):
-            results = run_memetic_algorithm(
-                n_workers=num_workers,
-                n_days=num_days,
-                r_day=req_day,
-                r_eve=req_eve,
-                r_night=req_night,
-                weights=weights,
-                pop_size=pop_size,
-                generations=generations,
-                crossover_rate=crossover_rate,
-                mutation_rate=mutation_rate,
-                local_search_depth=local_depth,
-                elitism_count=elitism_count,
-                seed=42,
-                custom_workers=custom_workers
-            )
-            st.session_state["res_t10"] = results
+        stream_enabled = params.get('live_stream_enabled', True)
+        stream_interval = max(1, int(params.get('live_stream_interval', 50) / 25))
+        
+        live_placeholder = st.empty()
+        tracker = LiveStreamTracker(
+            placeholder=live_placeholder,
+            title="Memetik Algoritma Hibrit Arama",
+            max_steps=generations,
+            unit_name="Nesil",
+            enabled=stream_enabled,
+            stream_interval=stream_interval,
+            key_prefix="t10_tracker"
+        )
+        
+        results = run_memetic_algorithm(
+            n_workers=num_workers,
+            n_days=num_days,
+            r_day=req_day,
+            r_eve=req_eve,
+            r_night=req_night,
+            weights=weights,
+            pop_size=pop_size,
+            generations=generations,
+            crossover_rate=crossover_rate,
+            mutation_rate=mutation_rate,
+            local_search_depth=local_depth,
+            elitism_count=elitism_count,
+            seed=42,
+            custom_workers=custom_workers,
+            callback=tracker.update if stream_enabled else None,
+            stream_interval=stream_interval
+        )
+        tracker.finish(generations, results.get('final_score'))
+        results['generations_run'] = generations
+        results['stream_data'] = tracker.get_stream_data()
+        st.session_state["res_t10"] = results
     else:
         results = st.session_state["res_t10"]
+        if params.get('live_stream_enabled', True) and 'stream_data' in results:
+            render_live_stream_summary(results['stream_data'])
 
-    # --- BİTİRME NEDENİ BİLDİRİMİ ---
+    # --- BİTİRME NEDENİ VE SERT KISIT UYGUNLUK BİLDİRİMİ ---
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
+    render_hard_constraints_status_card(
+        results.get('is_feasible', True),
+        results.get('hard_violations_count', 0),
+        results.get('hard_violation_logs', []),
+        solver_name="Memetik Algoritma (MA)"
+    )
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -159,19 +181,32 @@ def render_tab10(params):
         </div>""", unsafe_allow_html=True)
 
     with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Jenerasyon</div>
-        <div class="metric-value" style="color: #8b5cf6;">{results['generations_run']} Nesil</div>
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
         </div>""", unsafe_allow_html=True)
 
+    meta = results.get('meta', {})
+
     with m5:
+        tot_it = results.get('total_iterations', results.get('generations_run', generations))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Jenerasyon</div>
+        <div class="metric-value" style="color: #8b5cf6;">{tot_it} Nesil</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         eval_c = results.get('eval_count', int(total_evaluations))
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
         <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
         </div>""", unsafe_allow_html=True)
 
-    with m6:
+    with m7:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Hesaplama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -182,7 +217,10 @@ def render_tab10(params):
     # --- GÖRSEL GRAFİKLER ---
     st.markdown("### 🎨 Memetik Algoritma Evrimsel Yakınsama & Analitik Grafikler")
 
-    gens = list(range(1, len(results['best_score_history']) + 1))
+    score_hist = results.get('score_history', results.get('best_score_history', []))
+    gens = list(range(1, len(score_hist) + 1))
+    avg_scores = meta.get('avg_score_history', results.get('avg_score_history', score_hist))
+    div_scores = meta.get('diversity_history', results.get('diversity_history', [0.0] * len(gens)))
     
     g_col1, g_col2 = st.columns(2)
 
@@ -190,12 +228,12 @@ def render_tab10(params):
         st.markdown("##### 1️⃣ Jenerasyon Bazlı Memetik Yakınsama Grafiği (Best vs Avg Score)")
         fig_ma_conv = go.Figure()
         fig_ma_conv.add_trace(go.Scatter(
-            x=gens, y=results['best_score_history'],
+            x=gens, y=score_hist,
             name="Memetik En İyi Birey Skoru Z_best",
             line=dict(color="#059669", width=2.5)
         ))
         fig_ma_conv.add_trace(go.Scatter(
-            x=gens, y=results['avg_score_history'],
+            x=gens, y=avg_scores,
             name="Popülasyon Ortalama Skoru Z_avg",
             line=dict(color="#2563eb", width=2, dash="dash")
         ))
@@ -210,7 +248,7 @@ def render_tab10(params):
     with g_col2:
         st.markdown("##### 2️⃣ Popülasyon Genetik Çeşitlilik İndeksi (Standart Sapma)")
         fig_div = px.line(
-            x=gens, y=results['diversity_history'],
+            x=gens, y=div_scores,
             labels={"x": "Jenerasyon", "y": "Popülasyon Çeşitliliği (Std Dev)"},
             line_shape="linear"
         )

@@ -143,6 +143,95 @@ def check_swap_feasibility(schedule, workers, day, w1_idx, w2_idx, n_workers, n_
     return True
 
 
+def audit_all_hard_constraints(schedule, workers, n_workers, n_days, shift_reqs):
+    """
+    Tamamlanmış veya ara çizelgenin TÜM Sert Kısıtlarını (Hard Constraints)
+    satır satır denetler ve ihlalleri detaylı log listesi olarak döndürür.
+    
+    Kontrol edilen Sert Kısıtlar:
+    1. Vardiya kotaları / Kadro yetersizliği (Shift capacity requirements)
+    2. Her vardiyada zorunlu 4 MYK sertifikasının bulunması
+    3. 7 günlük kayan pencerede en az 1 gün OFF (dinlenme) kuralı (İş Kanunu 6 gün kuralı)
+    4. Gece (3) -> Ertesi gün Gündüz (1) dinlenme ihlali
+    5. Akşam (2) -> Ertesi gün Gündüz (1) dinlenme ihlali
+    
+    Döndürdüğü:
+      - is_feasible (bool): İhlal sayısı 0 ise True, aksi halde False
+      - hard_violations_count (int): Toplam tespit edilen sert kısıt ihlali sayısı
+      - hard_violation_logs (list[str]): İhlallerin detaylı açıklama listesi
+    """
+    hard_logs = []
+    shift_names = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
+    required_certs = {'Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu'}
+    
+    # 1 & 2: Gün bazlı vardiya kotaları ve MYK sertifika kontrolleri
+    for d in range(n_days):
+        shift_counts = {1: 0, 2: 0, 3: 0}
+        shift_skills = {1: set(), 2: set(), 3: set()}
+        
+        for w in workers:
+            wid = w['id']
+            if wid < schedule.shape[0]:
+                k = schedule[wid, d]
+                if k in (1, 2, 3):
+                    shift_counts[k] += 1
+                    shift_skills[k].update(w.get('skills', []))
+                    
+        for k in (1, 2, 3):
+            needed = shift_reqs.get(k, 0)
+            assigned = shift_counts[k]
+            if assigned < needed:
+                shortage = needed - assigned
+                hard_logs.append(
+                    f"❌ Kadro Yetersizliği [Gün {d+1} - {shift_names[k]}]: İstenen min {needed} kişi, atanan {assigned} kişi! (Eksik: {shortage} personel)"
+                )
+            elif assigned > needed:
+                excess = assigned - needed
+                hard_logs.append(
+                    f"⚠️ Fazla Atama [Gün {d+1} - {shift_names[k]}]: Kotadan fazla {excess} kişi atandı! (Atanan: {assigned}, İstenen: {needed})"
+                )
+                
+            if assigned > 0:
+                missing_certs = required_certs - shift_skills[k]
+                for cert in missing_certs:
+                    hard_logs.append(
+                        f"⚠️ MYK Sertifika Eksikliği [Gün {d+1} - {shift_names[k]}]: Zorunlu '{cert}' sertifikalı personel yok!"
+                    )
+
+    # 3, 4, 5: Çalışan bazlı dinlenme ve sirkadiyen kontroller
+    for w in workers:
+        wid = w['id']
+        if wid >= schedule.shape[0]:
+            continue
+        w_name = w.get('name', f"İşçi #{wid}")
+        w_posta = w.get('posta', '')
+        
+        # 3. 7 günlük kayan pencerede en az 1 gün OFF kontrolü
+        for tau in range(max(1, n_days - 6)):
+            window = schedule[wid, tau:tau + 7]
+            if np.sum(window == 0) == 0:
+                hard_logs.append(
+                    f"⛔ Haftalık Dinlenme İhlali: {w_name} ({w_posta}), Gün {tau+1}-{tau+7} arasında hiç izin (OFF) kullanmadan 7 gün üst üste çalıştırıldı!"
+                )
+                break  # İşçi başına haftalık pencereyi bir kez raporla
+                
+        # 4 & 5: Ardışık günler dinlenme süresi kontrolü
+        for d in range(n_days - 1):
+            s_curr = schedule[wid, d]
+            s_next = schedule[wid, d + 1]
+            if s_curr == 3 and s_next == 1:
+                hard_logs.append(
+                    f"🚫 Yetersiz Dinlenme (Gece->Gündüz): {w_name} Gün {d+1} Gece (08:00 çıkış) sonrası Gün {d+2} Gündüz (08:00 giriş) yazıldı (0 saat dinlenme)!"
+                )
+            elif s_curr == 2 and s_next == 1:
+                hard_logs.append(
+                    f"🚫 Yetersiz Dinlenme (Akşam->Gündüz): {w_name} Gün {d+1} Akşam (24:00 çıkış) sonrası Gün {d+2} Gündüz (08:00 giriş) yazıldı (8 saat dinlenme < 11 saat)!"
+                )
+
+    is_feasible = (len(hard_logs) == 0)
+    return is_feasible, len(hard_logs), hard_logs
+
+
 def build_worker_request_details(schedule, workers, n_days, weights):
     """
     Tüm çalışanların kişisel izin tercihlerinin (pref_off) karşılanma durumunu

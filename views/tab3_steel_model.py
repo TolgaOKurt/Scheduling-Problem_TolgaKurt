@@ -195,14 +195,14 @@ def render_tab3():
             "I = {1, 2, ..., N}",
             "T = {1, 2, ..., D}",
             "K = {0, 1, 2, 3}",
-            "S",
-            "I_s ⊆ I",
-            "R_{t,k}",
-            "x_{i,t,k} ∈ {0, 1}",
-            "d_i^+, d_i^- ≥ 0",
-            "posta_dev_{p,t} ≥ 0",
-            "s_{i,t}^{sirk} ∈ {0, 1}",
-            "no_usta_{t,k} ∈ {0, 1}"
+            "S (MYK Kümesi)",
+            "Iₛ ⊆ I",
+            "Rₜ,ₖ",
+            "xᵢ,ₜ,ₖ ∈ {0, 1}",
+            "dᵢ⁺, dᵢ⁻ ≥ 0",
+            "posta_devₚ,ₜ ≥ 0",
+            "sᵢ,ₜˢⁱʳᵏ ∈ {0, 1}",
+            "no_ustaₜ,ₖ ∈ {0, 1}"
         ],
         "Tür": [
             "Küme / İndeks",
@@ -325,11 +325,11 @@ def render_tab3():
         st.markdown(r"""
         MILP çözücülerinde bulunan bir çözümün **"Gerçekten En İyi (Optimal)"** olduğunu kanıtlamak için **Teorik Alt Sınır (Best Bound)** referans alınır:
         
-        * **Sürekli LP Gevşetmesi (Continuous LP Relaxation):** Tamsayılık zorunluluğu ($x \in \{0, 1\}$) kaldırılarak değişkenlerin sürekli gerçel sayılar ($0 \le x \le 1$) olmasına izin verilir.
+        * **Sürekli LP Gevşetmesi (Continuous LP Relaxation):** Tamsayılık zorunluluğu (<i>x</i> &isin; {0, 1}) kaldırılarak değişkenlerin sürekli gerçel sayılar (0 &le; <i>x</i> &le; 1) olmasına izin verilir.
         * **Neden Binlerce Kat Daha Hızlıdır?** Sürekli LP problemleri **P (Polinomial Time)** sınıfındadır ve Simplex / İç Nokta algoritmaları ile **1-5 milisaniyede** çözülür. MILP ise **NP-Hard** olup arka planda binlerce kez bu LP gevşetmesini çözer.
-        * **Neden Doğrudan Çizelge Olarak Kullanılamaz?** LP gevşetmesi *"Ahmet Salı günü %40 Gündüz, %60 Gece çalışsın"* gibi kesirli sonuçlar üretir (insan bölünemez). Ancak bu kesirli çözümün ceza puanı, hiçbir tamsayılı çözümün altına inemeyeceği **matematiksel mutlak taban puanını ($Z_{\text{bound}}$)** verir.
-        * **MIP Gap (Optimizasyon Açıklığı):** Bulunan geçerli çözüm ($Z_{\text{best}}$) ile teorik alt sınır ($Z_{\text{bound}}$) arasındaki yüzdesel farktır:
-        """)
+        * **Neden Doğrudan Çizelge Olarak Kullanılamaz?** LP gevşetmesi *"Ahmet Salı günü %40 Gündüz, %60 Gece çalışsın"* gibi kesirli sonuçlar üretir (insan bölünemez). Ancak bu kesirli çözümün ceza puanı, hiçbir tamsayılı çözümün altına inemeyeceği **matematiksel mutlak taban puanını (<i>Z</i><sub>bound</sub>)** verir.
+        * **MIP Gap (Optimizasyon Açıklığı):** Bulunan geçerli çözüm (<i>Z</i><sub>best</sub>) ile teorik alt sınır (<i>Z</i><sub>bound</sub>) arasındaki yüzdesel farktır:
+        """, unsafe_allow_html=True)
         st.latex(r"\text{MIP Gap (\%)} = \frac{|Z_{\text{best}} - Z_{\text{bound}}|}{\max(1, Z_{\text{best}})} \times 100")
 
     with bb_col2:
@@ -352,7 +352,7 @@ def render_tab3():
             <b>Evet, kesinlikle olabilir!</b> Literatürde buna <b>"Alternatif / Çoklu Global Optima (Multiple Global Optima)"</b> veya <b>"İşçi Simetrisi (Symmetry)"</b> denir:
         </p>
         <ul style="font-size: 0.9rem; color: #334155; line-height: 1.6; margin-bottom: 0.6rem; padding-left: 1.2rem;">
-            <li><b>Aynı Minimum Ceza, Farklı Çizelge:</b> MIP Gap'in %0.0 olması, amaç fonksiyonu değerinin (toplam cezanın <i>Z*</i>) ulaşılabilecek en dip seviyede olduğunu gösterir. Ancak aynı minimum cezayı veren birden fazla farklı vardiya atama matrisi ($X^{(1)} \\neq X^{(2)}$) bulunabilir.</li>
+            <li><b>Aynı Minimum Ceza, Farklı Çizelge:</b> MIP Gap'in %0.0 olması, amaç fonksiyonu değerinin (toplam cezanın <i>Z*</i>) ulaşılabilecek en dip seviyede olduğunu gösterir. Ancak aynı minimum cezayı veren birden fazla farklı vardiya atama matrisi (<i>X</i><sup>(1)</sup> &ne; <i>X</i><sup>(2)</sup>) bulunabilir.</li>
             <li><b>Somut Simetri Örneği:</b> Aynı yetkinliğe sahip iki vinç operatörünün (Ahmet ve Mehmet) Pazartesi ve Salı günkü gece/gündüz nöbetlerini aralarında değiş tokuş yapması toplam ceza puanını değiştirmez; her iki çizelge de <b>%100 Global Optimaldir</b>.</li>
             <li><b>Yönetimsel Avantaj:</b> Bu durum fabrika yönetimine esneklik sağlar; matematiksel olarak eşit kalitedeki alternatif optimal çizelgeler arasından en uygun insani tercih seçilebilir.</li>
         </ul>

@@ -18,7 +18,11 @@ from views.common_components import (
     render_posta_load_chart,
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
-    render_request_details_expander
+    render_request_details_expander,
+    render_hard_constraints_status_card,
+    render_evaluator_cost_badge,
+    LiveStreamTracker,
+    render_live_stream_summary
 )
 
 def render_tab8(params):
@@ -86,7 +90,8 @@ def render_tab8(params):
     est_cooling_cpu_ms = round(k_cooling_needed * 1.5, 1)
 
     cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
-    sa_est_calls = int(min(k_cooling_needed, max_iter) * 0.6)
+    # Komşuluk takaslarında farklı vardiya ve sert kısıt uygunluk olasılığı ~%28'dir
+    sa_est_calls = int(min(k_cooling_needed, max_iter) * 0.28)
     sa_total_ms = sa_est_calls * cost_ms
     sa_time_str = f"{sa_total_ms/1000:.2f} sn" if sa_total_ms >= 1000 else f"{sa_total_ms:.0f} ms"
 
@@ -100,13 +105,7 @@ def render_tab8(params):
             help="Sıcaklığın T_start değerinden T_min değerine düşmesi için gereken matematiksel net adım sayısı."
         )
     with pred_c2:
-        st.metric(
-            label="Tahmini Ceza Değerlendirme",
-            value=f"~{sa_est_calls:,} Çağrı",
-            delta=f"{cost_ms:.2f} ms * {sa_est_calls:,} = {sa_time_str}",
-            delta_color="off",
-            help="Geçerli komşu durumlarında hesaplanacak ceza değerlendirme sayısı."
-        )
+        render_evaluator_cost_badge(sa_est_calls, cost_ms, label="Tahmini Ceza Değerlendirme")
     with pred_c3:
         st.metric(
             label="İterasyon Sınırı (K_max)",
@@ -138,30 +137,57 @@ def render_tab8(params):
         return
 
     if run_btn:
-        with st.spinner("⏳ Simulated Annealing Stokastik Araması Çalıştırılıyor... Lütfen Bekleyiniz..."):
-            results = run_simulated_annealing(
-                n_workers=num_workers,
-                n_days=num_days,
-                r_day=req_day,
-                r_eve=req_eve,
-                r_night=req_night,
-                weights=weights,
-                t_start=t_start,
-                t_min=t_min,
-                cooling_rate=cooling_rate,
-                max_iterations=max_iter,
-                seed=42,
-                custom_workers=custom_workers
-            )
-            st.session_state["res_t8"] = results
+        stream_enabled = params.get('live_stream_enabled', True)
+        stream_interval = params.get('live_stream_interval', 50)
+        
+        live_placeholder = st.empty()
+        tracker = LiveStreamTracker(
+            placeholder=live_placeholder,
+            title="Simulated Annealing Stokastik Tavlama",
+            max_steps=max_iter,
+            unit_name="İterasyon",
+            enabled=stream_enabled,
+            stream_interval=stream_interval,
+            key_prefix="t8_tracker"
+        )
+        
+        results = run_simulated_annealing(
+            n_workers=num_workers,
+            n_days=num_days,
+            r_day=req_day,
+            r_eve=req_eve,
+            r_night=req_night,
+            weights=weights,
+            t_start=t_start,
+            t_min=t_min,
+            cooling_rate=cooling_rate,
+            max_iterations=max_iter,
+            seed=42,
+            custom_workers=custom_workers,
+            callback=tracker.update if stream_enabled else None,
+            stream_interval=stream_interval
+        )
+        tracker.finish(results.get('total_iterations', max_iter), results.get('final_score'))
+        results['stream_data'] = tracker.get_stream_data()
+        st.session_state["res_t8"] = results
     else:
         results = st.session_state["res_t8"]
+        if params.get('live_stream_enabled', True) and 'stream_data' in results:
+            render_live_stream_summary(results['stream_data'])
 
-    # --- ÇALIŞMAYI BİTİRME NEDENİ BİLDİRİMİ ---
+    # --- BİTİRME NEDENİ VE SERT KISIT UYGUNLUK BİLDİRİMİ ---
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
+    render_hard_constraints_status_card(
+        results.get('is_feasible', True),
+        results.get('hard_violations_count', 0),
+        results.get('hard_violation_logs', []),
+        solver_name="Simulated Annealing (Tavlama Benzetimi)"
+    )
+
+    meta = results.get('meta', {})
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5, m6 = st.columns(6)
+    m1, m2, m3, m4, m5, m6, m7 = st.columns(7)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -182,19 +208,31 @@ def render_tab8(params):
         </div>""", unsafe_allow_html=True)
 
     with m4:
+        is_feas = results.get('is_feasible', True)
+        h_cnt = results.get('hard_violations_count', 0)
+        feas_label = "✅ %100 GEÇERLİ" if is_feas else f"🚨 {h_cnt} İHLAL"
+        feas_color = "#059669" if is_feas else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Kabul Edilen Kötü Hamle</div>
-        <div class="metric-value" style="color: #ea580c;">{results['worse_accepted_moves']} / {results['accepted_moves']}</div>
+        <div class="metric-label">Sert Kısıt Uygunluğu</div>
+        <div class="metric-value" style="color: {feas_color}; font-size: 1.05rem;">{feas_label}</div>
         </div>""", unsafe_allow_html=True)
 
     with m5:
+        w_acc = meta.get('worse_accepted_moves', results.get('worse_accepted_moves', 0))
+        tot_acc = meta.get('accepted_moves', results.get('accepted_moves', 0))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Kabul Edilen Kötü Hamle</div>
+        <div class="metric-value" style="color: #ea580c;">{w_acc} / {tot_acc}</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         eval_c = results.get('eval_count', '-')
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
         <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
         </div>""", unsafe_allow_html=True)
 
-    with m6:
+    with m7:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Arama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -208,26 +246,32 @@ def render_tab8(params):
     # 1. ÇİFT EKSENLİ İTERASYON BAZLI CEZA PUANI & SICAKLIK DÜŞÜŞ GRAFİĞİ
     st.markdown("##### 1️⃣ İterasyon Bazlı Anlık Skor, En İyi Skor ve Sıcaklık T(k) Yakınsama Grafiği (Double Y-Axis)")
     
-    iters = list(range(len(results['curr_score_history'])))
+    score_hist = results.get('score_history', results.get('best_score_history', []))
+    curr_scores = meta.get('curr_score_history', results.get('curr_score_history', score_hist))
+    temp_hist = meta.get('temp_history', results.get('temp_history', [1000.0] * len(curr_scores)))
+    iters = list(range(len(curr_scores)))
     fig_sa_conv = go.Figure()
 
-    # Sol Y Ekseni 1: Anlık Arama Skoru Z_curr(k)
     fig_sa_conv.add_trace(go.Scatter(
-        x=iters, y=results['curr_score_history'],
-        name="Anlık Arama Skoru Z_curr(k)",
-        line=dict(color="#f97316", width=1.5, dash="dot")
+        x=iters,
+        y=curr_scores,
+        mode="lines",
+        name="Anlık Aday Skor Z_curr",
+        line=dict(color="#94a3b8", width=1)
     ))
 
-    # Sol Y Ekseni 2: En İyi Bulunan Skor Z_best(k)
     fig_sa_conv.add_trace(go.Scatter(
-        x=iters, y=results['best_score_history'],
-        name="En İyi Bulunan Skor Z_best(k)",
+        x=iters,
+        y=score_hist,
+        mode="lines",
+        name="Tarihi En İyi Skor Z_best",
         line=dict(color="#059669", width=2.5)
     ))
 
-    # Sağ Y Ekseni: Sıcaklık T(k)
     fig_sa_conv.add_trace(go.Scatter(
-        x=iters, y=results['temp_history'],
+        x=iters,
+        y=temp_hist,
+        mode="lines",
         name="Sıcaklık T(k)",
         line=dict(color="#0284c7", width=2, dash="dash"),
         yaxis="y2"

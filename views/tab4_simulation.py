@@ -1,6 +1,13 @@
 """
 ================================================================================
-  VIEWS/TAB4_SIMULATION.PY - SEKME 4: GREEDY SİMÜLASYONU, İZİN TALEPLERİ & GÖRSELLER
+  VIEWS/TAB4_SIMULATION.PY - SEKME 4: YAPICI SEZGİSELLER (GREEDY HEURISTICS)
+================================================================================
+  Bu sekme, Yöneylem Araştırması & Çizelgeleme literatüründeki
+  Yapıcı Sezgiselleri (Constructive / Greedy Heuristics):
+  1. Sıralı Miyopik Yaklaşım (Sequential Myopic Greedy)
+  2. Kademeli Desen Yaklaşımı (Staggered Pattern-Based Greedy)
+  3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)
+  modellerini, Pazar İzin Çöküşünü ve kısıt analizlerini görselleştirir.
 ================================================================================
 """
 import streamlit as st
@@ -18,19 +25,50 @@ from views.common_components import (
     render_shift_posta_stacked_chart,
     render_schedule_matrix_table,
     render_request_details_expander,
-    render_worker_profiles_table
+    render_worker_profiles_table,
+    render_evaluator_cost_badge
 )
 
 def render_tab4(params):
     """Sekme 4 içeriğini çizer: Greedy Simülasyonu, Sert İhlal Analizi, İzin Talepleri ve Grafikler."""
-    st.markdown("## ⚡ Greedy / Heuristic (Açgözlü) Vardiya Çizelgeleme Simülasyonu")
+    st.markdown("## ⚡ Yapıcı Sezgiseller (Constructive / Greedy Heuristics) Vardiya Simülasyonu")
 
+    # --- TEORİK KAVRAM KARTLARI (LİTERATÜR TANITIMI) ---
+    c_col1, c_col2 = st.columns(2)
+
+    with c_col1:
+        st.markdown("""<div class="card-box" style="border-top: 5px solid #059669;">
+<div class="card-title" style="color: #047857;">🧩 Yapıcı Sezgisel (Constructive Heuristic) Çerçevesi</div>
+<ul>
+<li><b>Tek Geçişli İnşa (Single-Pass Construction):</b> Çizelge 1. günden son güne kadar sırayla, boş matris doldurularak inşa edilir.</li>
+<li><b>Geri Dönüşsüz Karar (No Backtracking):</b> O anki vardiya için atanan işçi sabittir; sonraki günlerde kısıt çıkmazı yaşansa dahi geçmişe dönüp düzeltme yapılmaz.</li>
+<li><b>Açgözlü (Greedy) Seçim Kuralı:</b> Her vardiya için o an uygun adaylar arasından hedef postaya ait olan ve sertifikayı sağlayan işçiye yerel öncelik verilir.</li>
+<li><b>Yüksek Hesaplama Hızı [O(N · D)]:</b> Milisaniyeler içinde çizelge üretir; bu sayede metasezgisellere (Genetik, Tavlama vb.) kaliteli başlangıç çözümü sağlar.</li>
+</ul>
+</div>""", unsafe_allow_html=True)
+
+    with c_col2:
+        st.markdown("""<div class="card-box" style="border-top: 5px solid #2563eb;">
+<div class="card-title" style="color: #1d4ed8;">⚖️ Literatürdeki 3 Temel Yapıcı Yaklaşım Modu</div>
+<ul>
+<li><b>1. Sıralı / Miyopik Açgözlü (Sequential Myopic):</b> İleriye bakışsızdır. İşçilerin 6 gün çalışıp 7. gün kanuni izne çıkacağını öngöremez; bu yüzden pazar günleri toplu izin yığılması (<b>Pazar İzin Çöküşü / End-of-Horizon Shortage</b>) yaşanır.</li>
+<li><b>2. Kademeli / Desen Tabanlı (Staggered Pattern):</b> Zorunlu haftalık izinleri işçilere modüler rotasyonla [<i>i mod 7</i>] kademeli dağıtır. Hafta sonu kadro çöküşünü önler.</li>
+<li><b>3. Kısıt Öncelikli (MRV / LCV Tabanlı):</b> <b>MRV (Minimum Remaining Values)</b> ile darboğaz MYK sertifikalıları ve ustaları önceden güvenceye alır; <b>LCV (Least Constraining Value)</b> ile kişisel izin taleplerini korur ve joker ehliyetlileri saklar.</li>
+</ul>
+</div>""", unsafe_allow_html=True)
+
+    st.divider()
 
     # Algoritma Modu Seçimi
+    st.markdown("### 🎛️ Yapıcı Sezgisel (Greedy) Çözüm Modunu Seçin")
     solver_mode = st.radio(
-        "🧠 Greedy Yaklaşım Modu:",
-        options=["Naif Greedy (Standart Açgözlü Yaklaşım)", "Akıllı Kademeli Greedy (İzinleri Günlere Yayan)"],
-        help="Naif Greedy, vardiya atamalarını herhangi bir ileriye bakış (lookahead) veya izin yayılımı yapmadan sırayla gerçekleştirir. Akıllı Greedy ise haftalık izin günlerini dengeli biçimde yayar.",
+        "🧠 Yaklaşım Modu:",
+        options=[
+            "1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)",
+            "2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)",
+            "3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)"
+        ],
+        help="Sıralı mod pazar izin çöküşü yaşar. Kademeli mod zorunlu izinleri haftaya eşit yayar. MRV/LCV modu ise darboğaz sertifikaları ve izin taleplerini akıllıca önceliklendirir.",
         horizontal=True,
         key="t4_mode_radio"
     )
@@ -50,15 +88,13 @@ def render_tab4(params):
     st.markdown("#### 🧮 Hesaplama Yükü & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
     c_est1, c_est2 = st.columns(2)
     with c_est1:
-        st.metric(
-            label="📊 Tahmini Ceza Değerlendirme",
-            value="1 Çağrı",
-            delta=f"{cost_ms:.2f} ms * 1 = {t4_time_str}",
-            delta_color="off",
-            help="Doğrudan tek geçişli Greedy ataması sonrası 1 tam ceza değerlendirmesi yapılır."
-        )
+        render_evaluator_cost_badge(1, cost_ms, label="Tahmini Ceza Değerlendirme")
     with c_est2:
-        st.metric(label="🔍 Arama Uzayı Boyutu", value=f"4^{num_days}", help="Tüm olası çizelgeler arasından tek yönlü sezgiyle seçim yapılır.")
+        st.metric(
+            label="🔍 Zaman Karmaşıklığı (Time Complexity)",
+            value=f"O(N · D) ≈ {num_workers * num_days} Adım",
+            help="Her hücre için sabit sayıda işlemle tek yönlü atama yapılır."
+        )
 
     st.divider()
 
@@ -70,12 +106,31 @@ def render_tab4(params):
 
     if run_btn:
         with st.spinner("⏳ Greedy Vardiya Simülasyonu Çalıştırılıyor..."):
-            schedule_matrix, worker_list, penalty_dict, total_score, hard_viols_count, hard_logs, req_details = run_greedy_algorithm(
+            results = run_greedy_algorithm(
                 num_workers, num_days, req_day, req_eve, req_night, penalty_weights_dict, solver_mode=solver_mode, custom_workers=custom_workers
             )
-            st.session_state["res_t4"] = (schedule_matrix, worker_list, penalty_dict, total_score, hard_viols_count, hard_logs, req_details)
+            st.session_state["res_t4"] = results
+            if "Miyopik" in solver_mode or "Sıralı" in solver_mode:
+                st.session_state["res_t4_myopic"] = results
+            elif "Kademeli" in solver_mode:
+                st.session_state["res_t4_staggered"] = results
+            elif "MRV" in solver_mode or "Kısıt Öncelikli" in solver_mode:
+                st.session_state["res_t4_mrv"] = results
     else:
-        schedule_matrix, worker_list, penalty_dict, total_score, hard_viols_count, hard_logs, req_details = st.session_state["res_t4"]
+        results = st.session_state["res_t4"]
+
+    if isinstance(results, tuple):
+        schedule_matrix, worker_list, penalty_dict, total_score, hard_viols_count, hard_logs, req_details = results
+        is_feasible = (hard_viols_count == 0)
+    else:
+        schedule_matrix = results['schedule']
+        worker_list = results['workers']
+        penalty_dict = results['penalties']
+        total_score = results['final_score']
+        hard_viols_count = results['hard_violations_count']
+        hard_logs = results['hard_violation_logs']
+        req_details = results['request_details']
+        is_feasible = results.get('is_feasible', hard_viols_count == 0)
 
     # --- METRİK KARTLARI ---
     m1, m2, m3, m4, m5, m6 = st.columns(6)
@@ -87,8 +142,8 @@ def render_tab4(params):
         </div>""", unsafe_allow_html=True)
 
     with m2:
-        status_text = "GEÇERLİ" if hard_viols_count == 0 else "❌ GEÇERSİZ"
-        status_color = "#059669" if hard_viols_count == 0 else "#dc2626"
+        status_text = "GEÇERLİ" if is_feasible else "❌ GEÇERSİZ"
+        status_color = "#059669" if is_feasible else "#dc2626"
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Sert Kısıt Durumu</div>
         <div class="metric-value" style="color: {status_color}; font-size: 1.15rem;">{status_text}</div>
@@ -124,9 +179,11 @@ def render_tab4(params):
     st.divider()
 
     # --- SERT KISIT İHLALLERİ VE UYARI PANENELİ ---
-    if "Naif" in solver_mode and hard_viols_count > 0:
+    if ("Miyopik" in solver_mode or "Naif" in solver_mode) and hard_viols_count > 0:
         st.error(f"""
-        ⚠️ **KRİTİK UYARI: {hard_viols_count} Adet Sert Kısıt (Hard Constraint) İhlali Tespit Edildi!**
+        ⚠️ **LİTERATÜR BULGUSU - Pazar İzin Çöküşü (End-of-Horizon Shortage):**  
+        **{hard_viols_count} Adet Sert Kısıt İhlali / Vardiya Eksikliği Tespit Edildi!**  
+        Sıralı Miyopik Greedy algoritması geleceği öngöremediği için işçileri haftanın başında aralıksız çalıştırmış; 7. güne gelindiğinde neredeyse tüm işçiler kanuni maksimum çalışma süresini doldurduğu için aynı anda zorunlu izne ayrılmak zorunda kalmıştır.
         """)
         
         with st.expander("📌 Sert Kısıt İhlalleri ve Vardiya Kadro Eksiklikleri Detayı", expanded=True):
@@ -140,7 +197,10 @@ def render_tab4(params):
             st.dataframe(df_logs, width="stretch", hide_index=True)
 
     else:
-        st.success("✅ **TEBRİKLER:** Hiçbir Sert Kısıt ihlali yaşanmadı! Vardiya kadro ihtiyaçları (%100) eksiksiz karşılandı.")
+        if "MRV" in solver_mode or "LCV" in solver_mode or "Kısıt Öncelikli" in solver_mode:
+            st.success("✅ **BAŞARILI (MRV / LCV Tabanlı Önceliklendirme):** Kritik MYK belgeli işçiler öncelikli güvenceye alındı, izin talepleri gözetildi ve hiçbir Sert Kısıt ihlali yaşanmadan vardiya ihtiyaçları (%100) karşılandı.")
+        else:
+            st.success("✅ **BAŞARILI:** Kademeli izin deseni sayesinde hiçbir Sert Kısıt ihlali yaşanmadı! Vardiya kadro ihtiyaçları (%100) eksiksiz karşılandı.")
 
     st.divider()
 
@@ -220,7 +280,6 @@ def render_tab4(params):
         </p>
         </div>
         """, unsafe_allow_html=True)
-        st.progress(fulfillment_rate / 100.0)
 
     st.divider()
 
@@ -283,3 +342,15 @@ def render_tab4(params):
 
     # --- VARDİYA ÇİZELGESİ MATRIX TABLOSU ---
     render_schedule_matrix_table(schedule_matrix, worker_list, num_days, title="🗓️ Tam Vardiya Çizelge Tablosu")
+
+    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
+    render_request_details_expander(req_details)
+
+    st.divider()
+
+    # --- LİTERATÜR VE YÖNEYLEM DEĞERLENDİRMESİ ---
+    st.info("""
+    💡 **Yöneylem Araştırması Analizi (Yapıcı Sezgisellerin Başarımı ve Sınırları):**
+    - **Güçlü Yönü:** O(N × D) zaman karmaşıklığı ile 1 milisaniyeden kısa sürede tam bir çizelge kurar. Bu nedenle sezgisel ve metasezgisel algoritmalar için mükemmel bir **Başlangıç Çözümü Üreticisi (Initial Feasible Solution Generator)** olarak görev yapar.
+    - **Sınırları:** İlk bulduğu yerel kararlara kilitlenir. Geri izleme (Backtracking) yapmadığı için miyopik modda pazar krizleri yaşayabilir; yerel arama yapmadığı için yumuşak kısıtları bir **MILP (Tam Sayılı Programlama)** veya **Metasezgisel (GA, SA, Tabu)** kadar minimize edemez.
+    """)
