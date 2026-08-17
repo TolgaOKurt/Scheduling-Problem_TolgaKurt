@@ -10,6 +10,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from algorithms.ilp_pulp_solver import solve_ilp_pulp
+from views.common_components import (
+    render_schedule_heatmap,
+    render_workload_chart,
+    render_penalties_chart,
+    render_posta_load_chart,
+    render_shift_posta_stacked_chart,
+    render_schedule_matrix_table,
+    render_request_details_expander,
+    render_worker_profiles_table
+)
 
 def render_tab6(params):
     """Sekme 6 içeriğini çizer: ILP / MILP Matematiksel Optimizasyon Çözücüsü ve Grafikler."""
@@ -102,16 +112,16 @@ def render_tab6(params):
 
     st.markdown("#### 🧮 MILP Matematiksel Model Boyutu & Karmaşıklık Paneli (Ön-Analiz)")
 
-    pred_c1, pred_c2, pred_c3 = st.columns(3)
+    pred_c1, pred_c2, pred_c3, pred_c4 = st.columns(4)
     with pred_c1:
         st.metric(
-            label="Karar Değişkeni Sayısı (Decision Vars)",
-            value=f"{total_vars:,} Değişken",
+            label="Karar Değişkeni (Vars)",
+            value=f"{total_vars:,} Adet",
             help="İkili (Binary 0-1) atama ve kesikli yumuşak kısıt bağlayıcı karar değişkenleri sayısı."
         )
     with pred_c2:
         st.metric(
-            label="Kısıt Denklem Sayısı (Constraints)",
+            label="Kısıt Denklem Sayısı",
             value=f"{total_constraints:,} Denklem",
             help="Modele eklenen tüm sert (hard) ve yumuşak (soft) eşitlik/eşitsizlik denklemleri sayısı."
         )
@@ -120,6 +130,12 @@ def render_tab6(params):
             label="Model Büyüklük Sınıfı",
             value=f"{model_class_str}",
             help="Problemin değişken ve kısıt boyutuna göre matematiksel ölçek sınıfı."
+        )
+    with pred_c4:
+        st.metric(
+            label="Ceza Değerlendirme Tipi",
+            value="1 Doğrulama Çağrısı",
+            help="MILP katsayıları amaç fonksiyonunda tek hamlede optimize eder; sonuç raporu için 1 kez çağrılır."
         )
 
     st.divider()
@@ -169,7 +185,7 @@ def render_tab6(params):
         st.success("🏆 **%100 KÜRESEL OPTİMAL ÇÖZÜM KANITLANDI:** Solver tüm arama uzayını tamamladı ve matematiksel olarak en az ceza puanına sahip çözümü buldu.")
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
 
     with m1:
         status_clr = "#059669" if results['is_optimal'] else ("#dc2626" if (results['is_infeasible'] or not results['is_hard_feasible']) else "#d97706")
@@ -181,14 +197,14 @@ def render_tab6(params):
     with m2:
         obj_disp = results['objective_value'] if results['is_hard_feasible'] else "—"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Bulunan Amaç Skoru (Z)</div>
+        <div class="metric-label">Amaç Skoru (Z)</div>
         <div class="metric-value" style="color: #1d4ed8;">{obj_disp}</div>
         </div>""", unsafe_allow_html=True)
 
     with m3:
         bb_disp = results['best_bound'] if results['is_hard_feasible'] else "—"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Teorik Alt Sınır (Best Bound)</div>
+        <div class="metric-label">Teorik Alt Sınır</div>
         <div class="metric-value" style="color: #7c3aed;">{bb_disp}</div>
         </div>""", unsafe_allow_html=True)
 
@@ -196,11 +212,18 @@ def render_tab6(params):
         gap_disp = f"%{results['mip_gap']}" if results['is_hard_feasible'] else "—"
         gap_clr = "#059669" if results['mip_gap'] == 0 else "#d97706"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">MIP Sapma Oranı (MIP Gap)</div>
+        <div class="metric-label">MIP Gap</div>
         <div class="metric-value" style="color: {gap_clr};">{gap_disp}</div>
         </div>""", unsafe_allow_html=True)
 
     with m5:
+        eval_c = results.get('eval_count', 1)
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Ceza Çağrısı</div>
+        <div class="metric-value" style="color: #6366f1;">{eval_c} Adet</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Hesaplama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -247,20 +270,7 @@ def render_tab6(params):
     st.divider()
 
     # --- PERSONEL YETKİNLİK VE MYK SERTİFİKA KADRO TABLOSU ---
-    st.markdown("### 🪪 Aktif Personel Yetkinlik ve MYK Sertifika Kadro Listesi")
-    profile_rows = []
-    for w in results['workers']:
-        skills_formatted = ", ".join(sorted(list(w['skills'])))
-        profile_rows.append({
-            "İşçi Adı": w['name'],
-            "Posta": w['posta'],
-            "Unvan": "Kıdemli Usta" if w['is_usta'] else "Operatör/İşçi",
-            "Sahip Olduğu MYK Sertifika & Ehliyetler": skills_formatted,
-            "Talep Ettiği İzin Günü": f"Gün {w['pref_off'] + 1}"
-        })
-
-    df_profiles = pd.DataFrame(profile_rows)
-    st.dataframe(df_profiles, width="stretch", hide_index=True)
+    render_worker_profiles_table(results['workers'], title="🪪 Aktif Personel Yetkinlik ve MYK Sertifika Kadro Listesi")
 
     st.divider()
 
@@ -274,153 +284,27 @@ def render_tab6(params):
     g_col1, g_col2 = st.columns(2)
 
     with g_col1:
-        st.markdown("##### 1️⃣ ILP Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
-        fig_ilp_map = px.imshow(
-            results['schedule'],
-            labels=dict(x="Günler", y="Çalışanlar", color="Vardiya (0:OFF, 1:G, 2:A, 3:N)"),
-            x=[f"G{d+1}" for d in range(num_days)],
-            y=[w['name'] for w in results['workers']],
-            color_continuous_scale=[[0, '#cbd5e1'], [0.33, '#fde047'], [0.66, '#f97316'], [1.0, '#1e3a8a']],
-            aspect="auto"
-        )
-        fig_ilp_map.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380)
-        st.plotly_chart(fig_ilp_map, width="stretch", key="t6_ilp_map")
+        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t6_ilp", title="1️⃣ ILP Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
 
     with g_col2:
-        st.markdown("##### 2️⃣ ILP Personel Vardiya & Gece Nöbet Dağılımı")
-        ilp_worked = [np.sum(results['schedule'][i, :] > 0) for i in range(num_workers)]
-        ilp_night = [np.sum(results['schedule'][i, :] == 3) for i in range(num_workers)]
-        
-        df_ilp_workload = pd.DataFrame({
-            "İşçi": [w['name'] for w in results['workers']],
-            "Toplam Çalışma": ilp_worked,
-            "Gece Nöbeti": ilp_night
-        })
-        
-        fig_ilp_wl = px.bar(
-            df_ilp_workload,
-            x="İşçi",
-            y=["Toplam Çalışma", "Gece Nöbeti"],
-            barmode="group",
-            color_discrete_sequence=["#059669", "#dc2626"]
-        )
-        fig_ilp_wl.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_ilp_wl, width="stretch", key="t6_ilp_wl")
+        render_workload_chart(results['schedule'], results['workers'], key_prefix="t6_ilp", title="2️⃣ ILP Personel Vardiya & Gece Nöbet Dağılımı", color_seq=["#059669", "#dc2626"])
 
     g_col3, g_col4 = st.columns(2)
 
     with g_col3:
-        st.markdown("##### 3️⃣ ILP Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
-        df_ilp_penalties = pd.DataFrame({
-            "Kısıt Tipi": list(results['penalties'].keys()),
-            "Ceza Puanı": list(results['penalties'].values())
-        })
-        fig_ilp_pen = px.bar(
-            df_ilp_penalties,
-            x="Ceza Puanı",
-            y="Kısıt Tipi",
-            orientation="h",
-            text="Ceza Puanı",
-            color="Ceza Puanı",
-            color_continuous_scale="Reds"
-        )
-        fig_ilp_pen.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, showlegend=False)
-        st.plotly_chart(fig_ilp_pen, width="stretch", key="t6_ilp_pen")
+        render_penalties_chart(results['penalties'], key_prefix="t6_ilp", title="3️⃣ ILP Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
 
     with g_col4:
-        st.markdown("##### 4️⃣ ILP Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-        posta_data = []
-        for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-            p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-            if len(p_wids) > 0:
-                tot_w = np.sum(results['schedule'][p_wids, :] > 0)
-                tot_n = np.sum(results['schedule'][p_wids, :] == 3)
-                posta_data.append({"Posta": p, "Toplam Vardiya": tot_w, "Gece Vardiyası": tot_n})
-        
-        df_posta = pd.DataFrame(posta_data)
-        fig_posta = px.bar(
-            df_posta,
-            x="Posta",
-            y=["Toplam Vardiya", "Gece Vardiyası"],
-            barmode="group",
-            color_discrete_sequence=["#2563eb", "#dc2626"]
-        )
-        fig_posta.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_posta, width="stretch", key="t6_posta_load")
+        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t6_ilp", title="4️⃣ ILP Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
 
     # 5. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    st.markdown("### 🏢 5️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-    shift_labels = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
-    shift_posta_rows = []
-    
-    for d in range(num_days):
-        for k in [1, 2, 3]:
-            for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-                p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-                count_in_shift = sum(1 for wid in p_wids if results['schedule'][wid, d] == k)
-                shift_posta_rows.append({
-                    "Gün_Vardiya": f"G{d+1} - {shift_labels[k]}",
-                    "Gün": f"Gün {d+1:02d}",
-                    "Vardiya": shift_labels[k],
-                    "Posta": p,
-                    "Çalışan Sayısı": int(count_in_shift)
-                })
-
-    df_shift_posta = pd.DataFrame(shift_posta_rows)
-
-    v_tab1, v_tab2 = st.tabs(["📊 Tüm Günler & Vardiyalar Bütüncül Grafik", "🔍 Vardiya Türüne Göre Ayrıştırılmış"])
-
-    with v_tab1:
-        fig_sp_all = px.bar(
-            df_shift_posta,
-            x="Gün_Vardiya",
-            y="Çalışan Sayısı",
-            color="Posta",
-            barmode="stack",
-            text="Çalışan Sayısı",
-            color_discrete_map={
-                "Posta A": "#2563eb",
-                "Posta B": "#059669",
-                "Posta C": "#d97706",
-                "Posta D": "#7c3aed"
-            }
-        )
-        fig_sp_all.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=450, legend=dict(orientation="h", y=1.15), xaxis_tickangle=-45)
-        st.plotly_chart(fig_sp_all, width="stretch", key="t6_sp_all")
-
-    with v_tab2:
-        selected_shift = st.selectbox("İncelenecek Vardiyayı Seçin:", ["Gündüz (08-16)", "Akşam (16-24)", "Gece (24-08)"], key="t6_vselect")
-        df_sub = df_shift_posta[df_shift_posta["Vardiya"] == selected_shift]
-        
-        fig_sp_sub = px.bar(
-            df_sub,
-            x="Gün",
-            y="Çalışan Sayısı",
-            color="Posta",
-            barmode="stack",
-            text="Çalışan Sayısı",
-            color_discrete_map={
-                "Posta A": "#2563eb",
-                "Posta B": "#059669",
-                "Posta C": "#d97706",
-                "Posta D": "#7c3aed"
-            }
-        )
-        fig_sp_sub.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=400, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_sp_sub, width="stretch", key="t6_sp_sub")
+    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t6_ilp", title="5️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
 
     st.divider()
 
     # --- FULL OPTIMAL SCHEDULE MATRIX TABLE ---
-    st.markdown("### 🗓️ ILP / MILP Tarafından Üretilen Matematiksel Olarak Optimal Vardiya Çizelgesi")
-    shift_names = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
-    matrix_data = []
-    
-    for i, w in enumerate(results['workers']):
-        row = {"İşçi": w['name'], "Posta": w['posta'], "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi"}
-        for d in range(num_days):
-            row[f"Gün {d+1}"] = shift_names[results['schedule'][i, d]]
-        matrix_data.append(row)
+    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ ILP / MILP Tarafından Üretilen Matematiksel Olarak Optimal Vardiya Çizelgesi")
 
-    df_ilp_view = pd.DataFrame(matrix_data)
-    st.dataframe(df_ilp_view, width="stretch", hide_index=True)
+    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
+    if 'request_details' in results:
+        render_request_details_expander(results['request_details'])

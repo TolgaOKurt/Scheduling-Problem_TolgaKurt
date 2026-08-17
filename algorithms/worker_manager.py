@@ -1,12 +1,10 @@
 """
-================================================================================
   ALGORITHMS/WORKER_MANAGER.PY - PERSONEL KADROSU VE SERTİFİKA YÖNETİMİ
 ================================================================================
   Bu modül, deterministik, rastgele (randomized) veya kullanıcı tarafından
   elle düzenlenmiş (st.data_editor) personel profillerini ve MYK sertifikalarını
   yönetir. Posta takımlarının her birine otonom tam sertifika seti atanarak
   gerçek 4-posta bütünlüğü sağlanır.
-================================================================================
 """
 
 import random
@@ -56,15 +54,15 @@ def generate_worker_profiles(n_workers, n_days, randomize=False, seed=42):
                 skills.add('Kıdemli Usta')
                 skills.add(all_certs[(cert_assignment + 2) % 4]) # Usta çift ehliyetli
                 
-            # Postalar farklı günlerde izin talep etsin
-            pref_off = (posta_idx * 2 + within_posta_idx) % n_days
+            # Postalar farklı günlerde izin talep etsin (1..n_days)
+            pref_off = ((posta_idx * 2 + within_posta_idx) % n_days) + 1
         else:
             is_usta = random.choice([True, False, False])
             skills_count = random.randint(1, 3)
             skills = set(random.sample(all_certs, skills_count))
             if is_usta:
                 skills.add('Kıdemli Usta')
-            pref_off = random.randint(0, n_days - 1)
+            pref_off = random.randint(1, n_days)
             posta_name = random.choice(postas)
             
         workers.append({
@@ -73,7 +71,7 @@ def generate_worker_profiles(n_workers, n_days, randomize=False, seed=42):
             'posta': posta_name,
             'is_usta': is_usta,
             'skills': skills,
-            'pref_off': pref_off
+            'pref_off': int(pref_off)
         })
         
     return workers
@@ -92,17 +90,17 @@ def parse_edited_dataframe_to_workers(df_edited, n_days):
         if is_usta:
             skills.add('Kıdemli Usta')
             
-        pref_off_val = row.get('Talep Edilen İzin', 'Gün 1')
+        pref_off_val = row.get('Talep Edilen İzin (Gün)', row.get('Talep Edilen İzin', 1))
         try:
             import re
             digits = re.findall(r'\d+', str(pref_off_val))
             if digits:
-                pref_off = int(digits[0]) - 1
+                pref_off = int(digits[0])
             else:
-                pref_off = 0
-            pref_off = max(0, min(pref_off, n_days - 1))
+                pref_off = 1
+            pref_off = max(1, min(pref_off, n_days))
         except:
-            pref_off = 0
+            pref_off = 1
             
         workers.append({
             'id': idx,
@@ -110,6 +108,6 @@ def parse_edited_dataframe_to_workers(df_edited, n_days):
             'posta': str(row.get('Posta', 'Posta A')),
             'is_usta': is_usta,
             'skills': skills,
-            'pref_off': pref_off
+            'pref_off': int(pref_off)
         })
     return workers

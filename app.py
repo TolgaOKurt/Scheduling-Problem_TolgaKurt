@@ -1,25 +1,6 @@
 """
-================================================================================
-  HEMŞİRE ÇİZELGELEME PROBLEMİ (NSP/NRP) VE SANAYİ UYGULAMALARI STREAMLIT APP
-================================================================================
   Ana Giriş Dosyası (Master App Entry Point)
-  Bu dosya modüler mimari ile yapılandırılmıştır:
-  - config.py: Özel stiller ve CSS yapılandırmaları
-  - global_state.py: Sol menüde (Sidebar) bulunan merkezi model ve kadro yönetimi
-  - algorithms/greedy_solver.py: Greedy vardiya çizelgeleme algoritması
-  - algorithms/csp_backtracking_solver.py: Backtracking CSP Çözücü algoritması
-  - algorithms/ilp_pulp_solver.py: Integer Linear Programming (ILP/MILP) PuLP Çözücü
-  - algorithms/hill_climbing_solver.py: Hill Climbing / Local Search Çözücü
-  - algorithms/simulated_annealing_solver.py: Simulated Annealing (Tavlama Benzetimi) Çözücü
-  - views/tab1_nsp_intro.py: Sekme 1 - NSP Tanımı ve Tarihçesi
-  - views/tab2_industries.py: Sekme 2 - Sanayi ve Endüstri Uygulamaları
-  - views/tab3_steel_model.py: Sekme 3 - Çelik Sanayi Kısıtları & MILP Modeli
-  - views/tab4_simulation.py: Sekme 4 - Greedy Simülasyonu, İzin Talepleri & Görseller
-  - views/tab5_csp_backtracking.py: Sekme 5 - Backtracking / CSP Çözücü
-  - views/tab6_ilp_optimization.py: Sekme 6 - Integer Linear Programming (ILP)
-  - views/tab7_hill_climbing.py: Sekme 7 - Hill Climbing / Local Search
-  - views/tab8_simulated_annealing.py: Sekme 8 - Simulated Annealing (Tavlama Benzetimi)
-================================================================================
+  Bu dosya modüler mimari ile yapılandırılmıştır
 """
 
 import streamlit as st
@@ -37,6 +18,8 @@ from views.tab7_hill_climbing import render_tab7
 from views.tab8_simulated_annealing import render_tab8
 from views.tab9_genetic_algorithm import render_tab9
 from views.tab10_memetic_algorithm import render_tab10
+from views.tab11_tabu_search import render_tab11
+from views.tab_comparison import render_tab_comparison
 
 
 # ==============================================================================
@@ -48,20 +31,12 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# Özel Light Theme CSS Stillerini Enjekte Et
 apply_custom_styles()
 
-
-# ==============================================================================
-# 2. MERKEZİ GLOBAL MODEL YAPILANDIRMASI (SOL MENÜ)
-# ==============================================================================
+#(SOL MENÜ)
 global_params = render_global_sidebar()
 
-
-# ==============================================================================
 # 3. UYGULAMA BAŞLIĞI VE HERO BANNER
-# ==============================================================================
 st.markdown("""<div class="hero-container">
 <div class="hero-title">Hemşire Çizelgeleme Problemi (NSP/NRP) & Sanayi Uygulamaları</div>
 <div class="hero-subtitle">
@@ -121,8 +96,8 @@ with c2_3:
         st.session_state["active_tab"] = "tab6"
         st.rerun()
 
-# 3. SATIR: METASEZGİSEL OPTİMİZASYON ÇÖZÜCÜLERİ (4 KOLON)
-c3_1, c3_2, c3_3, c3_4 = st.columns(4)
+# 3. SATIR: METASEZGİSEL OPTİMİZASYON ÇÖZÜCÜLERİ - BÖLÜM 1 (3 KOLON)
+c3_1, c3_2, c3_3 = st.columns(3)
 
 with c3_1:
     btn_type = "primary" if st.session_state["active_tab"] == "tab7" else "secondary"
@@ -142,11 +117,26 @@ with c3_3:
         st.session_state["active_tab"] = "tab9"
         st.rerun()
 
-with c3_4:
+# 4. SATIR: GELİŞMİŞ METASEZGİSEL ÇÖZÜCÜLER - BÖLÜM 2 (2 KOLON)
+c4_1, c4_2 = st.columns(2)
+
+with c4_1:
     btn_type = "primary" if st.session_state["active_tab"] == "tab10" else "secondary"
     if st.button("🏆 Sekme 10: Memetik Algoritma", key="btn_t10", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab10"
         st.rerun()
+
+with c4_2:
+    btn_type = "primary" if st.session_state["active_tab"] == "tab11" else "secondary"
+    if st.button("🤫 Sekme 11: Tabu Search", key="btn_t11", width="stretch", type=btn_type):
+        st.session_state["active_tab"] = "tab11"
+        st.rerun()
+
+# 5. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
+btn_type_comp = "primary" if st.session_state["active_tab"] == "tab_comparison" else "secondary"
+if st.button("⚖️ Son Sekme: Bütüncül Karşılaştırma & Metasezgisel Benchmark Analizi", key="btn_t_comp", width="stretch", type=btn_type_comp):
+    st.session_state["active_tab"] = "tab_comparison"
+    st.rerun()
 
 st.divider()
 
@@ -173,3 +163,7 @@ elif curr == "tab9":
     render_tab9(global_params)
 elif curr == "tab10":
     render_tab10(global_params)
+elif curr == "tab11":
+    render_tab11(global_params)
+elif curr == "tab_comparison":
+    render_tab_comparison(global_params)

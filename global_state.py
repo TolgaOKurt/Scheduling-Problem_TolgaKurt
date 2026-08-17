@@ -13,9 +13,11 @@ import pandas as pd
 from algorithms.worker_manager import generate_worker_profiles, parse_edited_dataframe_to_workers
 
 def render_global_sidebar():
-    """
-    Tüm algoritmalara (Sekme 4, 5, 6, 7) ortak veri sağlayan merkezi Sidebar kontrol paneli.
-    """
+
+
+#    Tüm algoritmalara ortak veri sağlayan merkezi Sidebar kontrol paneli.
+
+
     st.sidebar.markdown("## ⚙️ Merkezi Model & Kadro Yönetimi")
     st.sidebar.caption("Burada yaptığınız tüm değişiklikler tüm algoritmalar için eş zamanlı olarak geçerli olur.")
 
@@ -25,6 +27,17 @@ def render_global_sidebar():
     
     n_workers = st.sidebar.slider("Toplam Personel Sayısı (N)", min_value=16, max_value=48, value=24, step=4, key="g_n")
     n_days = st.sidebar.slider("Planlama Periyodu / Gün (D)", min_value=7, max_value=28, value=14, step=7, key="g_d")
+
+    # N ve D matris boyutuna göre dinamik çağrı başı maliyet hesabı
+    call_cost_ms = round(0.001492 * (n_workers * n_days) + 0.1670, 3)
+    call_cost_us = round(call_cost_ms * 1000, 1)
+
+    st.sidebar.markdown(f"""
+    <div style="background-color: #f8fafc; border: 1px solid #cbd5e1; border-radius: 6px; padding: 8px 10px; margin-top: 5px; font-size: 0.82rem; color: #334155;">
+        ⚡ <b>Çağrı Başı Ortalama Maliyet:</b> <span style="color: #2563eb; font-weight: bold;">{call_cost_ms:.3f} ms</span> ({call_cost_us:.0f} µs)<br>
+        <span style="font-size: 0.75rem; color: #64748b;">(Matris Boyutu: {n_workers} × {n_days} = {n_workers*n_days} hücre)</span>
+    </div>
+    """, unsafe_allow_html=True)
 
     # 2. VARDIYA BAŞI MİNİMUM İHTİYAÇLAR
     st.sidebar.markdown("---")
@@ -85,7 +98,7 @@ def render_global_sidebar():
             "Potacı": "Potacı" in w['skills'],
             "Sıcak Metal Döküm Uzmanı": "Sıcak Metal Döküm Uzmanı" in w['skills'],
             "Gaz İzleme Sorumlusu": "Gaz İzleme Sorumlusu" in w['skills'],
-            "Talep Edilen İzin": f"Gün {w['pref_off'] + 1}"
+            "Talep Edilen İzin (Gün)": int(w['pref_off'])
         }
         for w in base_workers
     ])
@@ -101,5 +114,6 @@ def render_global_sidebar():
         'r_eve': r_eve,
         'r_night': r_night,
         'weights': weights,
-        'custom_workers': custom_workers
+        'custom_workers': custom_workers,
+        'call_cost_ms': call_cost_ms
     }

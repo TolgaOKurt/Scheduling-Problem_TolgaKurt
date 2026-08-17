@@ -13,6 +13,7 @@ import time
 import numpy as np
 import pandas as pd
 from algorithms.worker_manager import generate_worker_profiles
+from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details
 
 class CSPBacktrackingSolver:
     def __init__(self, n_workers, n_days, r_day, r_eve, r_night, max_backtracks=3000, custom_workers=None, weights=None):
@@ -73,6 +74,7 @@ class CSPBacktrackingSolver:
         self.execution_time = (time.time() - self.start_time) * 1000 # ms
         
         penalties = self._calculate_soft_penalties()
+        request_details = build_worker_request_details(self.schedule, self.workers, self.n_days, self.weights)
         
         return {
             'success': success,
@@ -82,7 +84,10 @@ class CSPBacktrackingSolver:
             'nodes_explored': self.nodes_explored,
             'exec_time_ms': round(self.execution_time, 2),
             'penalties': penalties,
-            'total_penalty': sum(penalties.values())
+            'total_penalty': sum(penalties.values()),
+            'final_score': sum(penalties.values()),
+            'eval_count': 1,
+            'request_details': request_details
         }
 
     def _generate_candidate_groups(self, day, shift_idx, needed, target_posta):
@@ -188,53 +193,5 @@ class CSPBacktrackingSolver:
         return False
 
     def _calculate_soft_penalties(self):
-        penalties = {
-            'Posta Takım Bütünlüğü İhlali': 0,
-            'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
-            'Gece Nöbeti Dengesizliği': 0,
-            'Kıdem & MYK Sertifika Eksikliği': 0,
-            'Kişisel İzin İhlali': 0
-        }
-        
-        postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
-        
-        w_posta = self.weights.get('posta', 15)
-        w_circ = self.weights.get('circadian', 50)
-        w_night = self.weights.get('night_imb', 25)
-        w_pref = self.weights.get('pref_off', 40)
-        w_exp = self.weights.get('exp_mix', 30)
-
-        for d in range(self.n_days):
-            for p in postas:
-                p_wids = [w['id'] for w in self.workers if w['posta'] == p]
-                active_shifts = [self.schedule[wid, d] for wid in p_wids if self.schedule[wid, d] != 0]
-                if len(active_shifts) > 1:
-                    counts = [active_shifts.count(s) for s in set(active_shifts)]
-                    majority = max(counts)
-                    deviated = len(active_shifts) - majority
-                    penalties['Posta Takım Bütünlüğü İhlali'] += deviated * w_posta
-        
-        night_counts = np.array([np.sum(self.schedule[i, :] == 3) for i in range(self.n_workers)])
-        avg_night = np.mean(night_counts) if self.n_workers > 0 else 0
-        
-        for i in range(self.n_workers):
-            for d in range(self.n_days - 1):
-                if self.schedule[i, d] == 2 and self.schedule[i, d+1] == 1:
-                    penalties['Sirkadiyen Ritim İhlali (Akşam->Gündüz)'] += w_circ
-                    
-            diff = abs(night_counts[i] - avg_night)
-            penalties['Gece Nöbeti Dengesizliği'] += int(diff * w_night)
-            
-            p_day = self.workers[i]['pref_off']
-            if p_day < self.n_days and self.schedule[i, p_day] != 0:
-                penalties['Kişisel İzin İhlali'] += w_pref
-
-        worker_map = {w['id']: w for w in self.workers}
-        for d in range(self.n_days):
-            for k in [1, 2, 3]:
-                shift_wids = [w['id'] for w in self.workers if self.schedule[w['id'], d] == k]
-                ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
-                if len(shift_wids) > 0 and ustas == 0:
-                    penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
-                
+        penalties, _ = calculate_full_penalties(self.schedule, self.workers, self.n_workers, self.n_days, self.weights)
         return penalties

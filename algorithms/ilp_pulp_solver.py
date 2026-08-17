@@ -13,6 +13,7 @@ import numpy as np
 import pandas as pd
 import pulp
 from algorithms.worker_manager import generate_worker_profiles
+from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details
 
 import math
 
@@ -43,9 +44,9 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
     max_off_capacity_per_day = max(0, n_workers - daily_req_sum)
     off_requests_per_day = {}
     for w in workers:
-        p_day = w['pref_off']
-        if p_day < n_days:
-            off_requests_per_day[p_day] = off_requests_per_day.get(p_day, 0) + 1
+        p_day_idx = int(w['pref_off']) - 1
+        if 0 <= p_day_idx < n_days:
+            off_requests_per_day[p_day_idx] = off_requests_per_day.get(p_day_idx, 0) + 1
     pref_lb = sum(max(0, reqs - max_off_capacity_per_day) for reqs in off_requests_per_day.values()) * w_pref
     
     analytical_lb = night_lb + usta_lb + pref_lb
@@ -96,9 +97,9 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
                 model += pulp.lpSum([x[i, tau, 0] for tau in range(t, t + 7)]) >= 1
 
         for i in range(n_workers):
-            p_day = workers[i]['pref_off']
-            if p_day < n_days:
-                model += pref_viol[i] >= 1 - x[i, p_day, 0]
+            p_day_idx = int(workers[i]['pref_off']) - 1
+            if 0 <= p_day_idx < n_days:
+                model += pref_viol[i] >= 1 - x[i, p_day_idx, 0]
 
         for t in range(n_days):
             for k in [1, 2, 3]:
@@ -204,9 +205,9 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             model += sirk[i, t] >= x[i, t, 2] + x[i, t+1, 1] - 1, f"CircadianLink_{i}_{t}"
             
     for i in range(n_workers):
-        p_day = workers[i]['pref_off']
-        if p_day < n_days:
-            model += pref_viol[i] >= 1 - x[i, p_day, 0], f"PrefOffLink_{i}"
+        p_day_idx = int(workers[i]['pref_off']) - 1
+        if 0 <= p_day_idx < n_days:
+            model += pref_viol[i] >= 1 - x[i, p_day_idx, 0], f"PrefOffLink_{i}"
             
     for t in range(n_days):
         for k in [1, 2, 3]:
@@ -313,48 +314,18 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     night_counts = np.array([np.sum(schedule[i, :] == 3) for i in range(n_workers)])
     avg_night = np.mean(night_counts) if n_workers > 0 else 0
     
-    penalties = {
-        'Posta Takım Bütünlüğü İhlali': 0,
-        'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
-        'Gece Nöbeti Dengesizliği': 0,
-        'Kıdem & MYK Sertifika Eksikliği': 0,
-        'Kişisel İzin İhlali': 0
-    }
-    
     if is_hard_feasible:
-        for i in range(n_workers):
-            for t in range(n_days - 1):
-                if schedule[i, t] == 2 and schedule[i, t+1] == 1:
-                    penalties['Sirkadiyen Ritim İhlali (Akşam->Gündüz)'] += w_circ
-                    
-            p_day = workers[i]['pref_off']
-            if p_day < n_days and schedule[i, p_day] != 0:
-                penalties['Kişisel İzin İhlali'] += w_pref
-
-        penalties['Gece Nöbeti Dengesizliği'] = sum(
-            int(abs(night_counts[i] - target_avg_night) * w_night_imb)
-            for i in range(n_workers)
-        )
-                
-        worker_map = {w['id']: w for w in workers}
-        for t in range(n_days):
-            for k in [1, 2, 3]:
-                shift_wids = [w['id'] for w in workers if schedule[w['id'], t] == k]
-                ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
-                if len(shift_wids) > 0 and ustas == 0:
-                    penalties['Kıdem & MYK Sertifika Eksikliği'] += w_exp
-                    
-        for t in range(n_days):
-            for p in postas:
-                p_wids = [w['id'] for w in workers if w['posta'] == p]
-                active_shifts = [schedule[wid, t] for wid in p_wids if schedule[wid, t] != 0]
-                if len(active_shifts) > 1:
-                    counts = [active_shifts.count(s) for s in set(active_shifts)]
-                    majority = max(counts)
-                    deviated = len(active_shifts) - majority
-                    penalties['Posta Takım Bütünlüğü İhlali'] += deviated * w_posta
-
-    total_penalty = sum(penalties.values()) if is_hard_feasible else 99999
+        penalties, total_penalty = calculate_full_penalties(schedule, workers, n_workers, n_days, weights)
+    else:
+        penalties = {
+            'Posta Takım Bütünlüğü İhlali': 0,
+            'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
+            'Gece Nöbeti Dengesizliği': 0,
+            'Kıdem & MYK Sertifika Eksikliği': 0,
+            'Kişisel İzin İhlali': 0
+        }
+        total_penalty = 99999
+    
     obj_val = total_penalty
     
     # TEORİK ALT SINIR (BEST BOUND) & MIP GAP HESABI
@@ -379,22 +350,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
         best_bound = calculated_best_bound
         mip_gap = 100.0
 
-    request_details = []
-    for w in workers:
-        wid = w['id']
-        p_day = w['pref_off']
-        assigned_shift = schedule[wid, p_day] if p_day < n_days else 0
-        is_fulfilled = (assigned_shift == 0)
-        request_details.append({
-            'id': wid,
-            'name': w['name'],
-            'posta': w['posta'],
-            'unvan': "Kıdemli Usta" if w['is_usta'] else "Operatör/İşçi",
-            'talep_gun': f"Gün {p_day + 1}",
-            'atandi_vardiya': "OFF (İzin)" if is_fulfilled else ("Gündüz" if assigned_shift==1 else ("Akşam" if assigned_shift==2 else "Gece")),
-            'durum': "✅ Karşılandı (OFF verildi)" if is_fulfilled else "❌ İhlal Edildi (Vardiyaya Yazıldı)",
-            'ceza_puani': 0 if is_fulfilled else w_pref
-        })
+    request_details = build_worker_request_details(schedule, workers, n_days, weights)
         
     return {
         'status_text': status_text,
@@ -411,6 +367,8 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
         'exec_time_ms': exec_time,
         'penalties': penalties,
         'total_penalty': total_penalty,
+        'final_score': total_penalty,
         'hard_violations': hard_violations,
-        'request_details': request_details
+        'request_details': request_details,
+        'eval_count': 1
     }

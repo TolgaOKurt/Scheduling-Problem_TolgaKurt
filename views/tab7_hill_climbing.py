@@ -10,6 +10,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from algorithms.hill_climbing_solver import run_hill_climbing
+from views.common_components import (
+    render_schedule_heatmap,
+    render_workload_chart,
+    render_penalties_chart,
+    render_posta_load_chart,
+    render_shift_posta_stacked_chart,
+    render_schedule_matrix_table,
+    render_request_details_expander
+)
 
 def render_tab7(params):
     """Sekme 7 içeriğini çizer: Hill Climbing / Local Search Metasezgisel Çözücüsü ve Grafikler."""
@@ -89,6 +98,25 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
     weights = params['weights']
     custom_workers = params['custom_workers']
 
+    # HESAPLAMA YÜKÜ & ÖN-ANALİZ PANELİ
+    cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
+    hc_est_calls = int(max_iter * 0.5)
+    hc_total_ms = hc_est_calls * cost_ms
+    hc_time_str = f"{hc_total_ms/1000:.2f} sn" if hc_total_ms >= 1000 else f"{hc_total_ms:.0f} ms"
+
+    st.markdown("#### 🧮 İterasyon & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+    c_est1, c_est2 = st.columns(2)
+    with c_est1:
+        st.metric(
+            label="📊 Tahmini Ceza Değerlendirme",
+            value=f"~{hc_est_calls:,} Çağrı",
+            delta=f"{cost_ms:.2f} ms * {hc_est_calls:,} = {hc_time_str}",
+            delta_color="off",
+            help="Her sert kısıt sağlayan geçerli komşu takasında 1 tam ceza puanı hesaplanır."
+        )
+    with c_est2:
+        st.metric(label="🎯 Maksimum İterasyon Limiti", value=f"{max_iter:,} Adım", help="Yerel aramada denenecek maksimum komşuluk sayısı.")
+
     st.divider()
 
     run_btn = st.button("🚀 Hill Climbing Optimizasyonunu Başlat", type="primary", width="stretch", key="btn_run_t7")
@@ -118,17 +146,17 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Başlangıç Ceza Skoru</div>
+        <div class="metric-label">Başlangıç Skoru</div>
         <div class="metric-value" style="color: #dc2626;">{results['initial_score']}</div>
         </div>""", unsafe_allow_html=True)
 
     with m2:
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">İyileştirilmiş Son Skor</div>
+        <div class="metric-label">İyileştirilmiş Skor</div>
         <div class="metric-value" style="color: #059669;">{results['final_score']}</div>
         </div>""", unsafe_allow_html=True)
 
@@ -145,6 +173,13 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
         </div>""", unsafe_allow_html=True)
 
     with m5:
+        eval_c = results.get('eval_count', '-')
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
+        <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Arama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -196,129 +231,27 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
     g_col1, g_col2 = st.columns(2)
 
     with g_col1:
-        st.markdown("##### 2️⃣ Hill Climbing Vardiya Dağılım Isı Haritası (Heatmap)")
-        fig_hc_map = px.imshow(
-            results['schedule'],
-            labels=dict(x="Günler", y="Çalışanlar", color="Vardiya (0:OFF, 1:G, 2:A, 3:N)"),
-            x=[f"G{d+1}" for d in range(num_days)],
-            y=[w['name'] for w in results['workers']],
-            color_continuous_scale=[[0, '#cbd5e1'], [0.33, '#fde047'], [0.66, '#f97316'], [1.0, '#1e3a8a']],
-            aspect="auto"
-        )
-        fig_hc_map.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380)
-        st.plotly_chart(fig_hc_map, width="stretch", key="t7_fig_hc_map")
+        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t7_hc", title="2️⃣ Hill Climbing Vardiya Dağılım Isı Haritası (Heatmap)")
 
     with g_col2:
-        st.markdown("##### 3️⃣ HC Personel Vardiya & Gece Nöbet Dağılımı")
-        hc_worked = [np.sum(results['schedule'][i, :] > 0) for i in range(num_workers)]
-        hc_night = [np.sum(results['schedule'][i, :] == 3) for i in range(num_workers)]
-        
-        df_hc_workload = pd.DataFrame({
-            "İşçi": [w['name'] for w in results['workers']],
-            "Toplam Çalışma": hc_worked,
-            "Gece Nöbeti": hc_night
-        })
-        
-        fig_hc_wl = px.bar(
-            df_hc_workload,
-            x="İşçi",
-            y=["Toplam Çalışma", "Gece Nöbeti"],
-            barmode="group",
-            color_discrete_sequence=["#059669", "#dc2626"]
-        )
-        fig_hc_wl.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=380, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_hc_wl, width="stretch", key="t7_fig_hc_wl")
+        render_workload_chart(results['schedule'], results['workers'], key_prefix="t7_hc", title="3️⃣ HC Personel Vardiya & Gece Nöbet Dağılımı", color_seq=["#059669", "#dc2626"])
 
     g_col3, g_col4 = st.columns(2)
 
     with g_col3:
-        st.markdown("##### 4️⃣ HC Yumuşak Kısıt Ceza Puanı Dağılımı")
-        df_hc_penalties = pd.DataFrame({
-            "Kısıt Tipi": list(results['penalties'].keys()),
-            "Ceza Puanı": list(results['penalties'].values())
-        })
-        fig_hc_pen = px.bar(
-            df_hc_penalties,
-            x="Ceza Puanı",
-            y="Kısıt Tipi",
-            orientation="h",
-            text="Ceza Puanı",
-            color="Ceza Puanı",
-            color_continuous_scale="Reds"
-        )
-        fig_hc_pen.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, showlegend=False)
-        st.plotly_chart(fig_hc_pen, width="stretch", key="t7_fig_hc_pen")
+        render_penalties_chart(results['penalties'], key_prefix="t7_hc", title="4️⃣ HC Yumuşak Kısıt Ceza Puanı Dağılımı")
 
     with g_col4:
-        st.markdown("##### 5️⃣ HC Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-        posta_data = []
-        for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-            p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-            if len(p_wids) > 0:
-                tot_w = np.sum(results['schedule'][p_wids, :] > 0)
-                tot_n = np.sum(results['schedule'][p_wids, :] == 3)
-                posta_data.append({"Posta": p, "Toplam Vardiya": tot_w, "Gece Vardiyası": tot_n})
-        
-        df_posta = pd.DataFrame(posta_data)
-        fig_posta = px.bar(
-            df_posta,
-            x="Posta",
-            y=["Toplam Vardiya", "Gece Vardiyası"],
-            barmode="group",
-            color_discrete_sequence=["#2563eb", "#dc2626"]
-        )
-        fig_posta.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_posta, width="stretch", key="t7_posta_load")
+        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t7_hc", title="5️⃣ HC Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
 
     # 6. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    st.markdown("### 🏢 6️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-    shift_labels = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
-    shift_posta_rows = []
-    
-    for d in range(num_days):
-        for k in [1, 2, 3]:
-            for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-                p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-                count_in_shift = sum(1 for wid in p_wids if results['schedule'][wid, d] == k)
-                shift_posta_rows.append({
-                    "Gün_Vardiya": f"G{d+1} - {shift_labels[k]}",
-                    "Gün": f"Gün {d+1:02d}",
-                    "Vardiya": shift_labels[k],
-                    "Posta": p,
-                    "Çalışan Sayısı": int(count_in_shift)
-                })
-
-    df_shift_posta = pd.DataFrame(shift_posta_rows)
-
-    fig_sp_all = px.bar(
-        df_shift_posta,
-        x="Gün_Vardiya",
-        y="Çalışan Sayısı",
-        color="Posta",
-        barmode="stack",
-        text="Çalışan Sayısı",
-        color_discrete_map={
-            "Posta A": "#2563eb",
-            "Posta B": "#059669",
-            "Posta C": "#d97706",
-            "Posta D": "#7c3aed"
-        }
-    )
-    fig_sp_all.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=450, legend=dict(orientation="h", y=1.15), xaxis_tickangle=-45)
-    st.plotly_chart(fig_sp_all, width="stretch", key="t7_sp_all")
+    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t7_hc", title="6️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
 
     st.divider()
 
     # --- FULL SCHEDULE MATRIX TABLE ---
-    st.markdown("### 🗓️ Hill Climbing Tarafından İyileştirilen Vardiya Çizelgesi")
-    shift_names = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
-    matrix_data = []
+    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Hill Climbing Tarafından İyileştirilen Vardiya Çizelgesi")
     
-    for i, w in enumerate(results['workers']):
-        row = {"İşçi": w['name'], "Posta": w['posta'], "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi"}
-        for d in range(num_days):
-            row[f"Gün {d+1}"] = shift_names[results['schedule'][i, d]]
-        matrix_data.append(row)
-
-    df_hc_view = pd.DataFrame(matrix_data)
-    st.dataframe(df_hc_view, width="stretch", hide_index=True)
+    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
+    if 'request_details' in results:
+        render_request_details_expander(results['request_details'])

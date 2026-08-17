@@ -11,6 +11,15 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from algorithms.memetic_algorithm_solver import run_memetic_algorithm
+from views.common_components import (
+    render_schedule_heatmap,
+    render_workload_chart,
+    render_penalties_chart,
+    render_posta_load_chart,
+    render_shift_posta_stacked_chart,
+    render_schedule_matrix_table,
+    render_request_details_expander
+)
 
 def render_tab10(params):
     """Sekme 10 içeriğini çizer: Memetik Algoritma (MA) Hibrit Evrimsel Çözücü ve Analitik Grafikler."""
@@ -72,24 +81,25 @@ def render_tab10(params):
     # Ampirik Benchmark Ölçümü: 1 Memetik evrim + lokal takas adımı hücre başına ~0.00373 ms
     est_ma_cpu_ms = round(total_evaluations * num_workers * num_days * 0.00373, 1)
 
-    st.markdown("#### 🧮 Evrimsel & Hibrit Değerlendirme Tahmin Paneli")
+    cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
+    ma_est_calls = int(total_evaluations)
+    ma_total_ms = ma_est_calls * cost_ms
+    ma_time_str = f"{ma_total_ms/1000:.2f} sn" if ma_total_ms >= 1000 else f"{ma_total_ms:.0f} ms"
 
-    pred_c1, pred_c2, pred_c3 = st.columns(3)
+    st.markdown("#### 🧮 Evrimsel & Hibrit Değerlendirme Tahmin Paneli (Ön-Analiz)")
+
+    pred_c1, pred_c2 = st.columns(2)
     with pred_c1:
         st.metric(
-            label="Toplam Değerlendirilecek Birey & Takas Adımı",
-            value=f"{int(total_evaluations):,} İterasyon",
-            help="Popülasyon evrimi ve lokal tamir adımları dahil toplam değerlendirme."
+            label="Tahmini Ceza Değerlendirme (GA + Tamir)",
+            value=f"{ma_est_calls:,} Çağrı",
+            delta=f"{cost_ms:.2f} ms * {ma_est_calls:,} = {ma_time_str}",
+            delta_color="off",
+            help="Popülasyon evrimi ve Hill Climbing mikro-tamir adımları dahil toplam ceza hesaplama çağrısı."
         )
     with pred_c2:
         st.metric(
-            label="Tahmini Hibrit Evrim Süresi",
-            value=f"~{est_ma_cpu_ms:,} ms",
-            help="Memetik iyileştirme tamamlanana kadar harcanacak tahmini CPU süresi."
-        )
-    with pred_c3:
-        st.metric(
-            label="Popülasyon Koruma Oranı (Elitizm)",
+            label="Elitizm Koruma Oranı",
             value=f"%{round((elitism_count / pop_size) * 100, 1)}",
             help="Her nesilde korunup doğrudan aktarılan şampiyon kromozom oranı."
         )
@@ -128,11 +138,11 @@ def render_tab10(params):
     st.info(f"📌 **Çözücünün Çalışmayı Bitirme Nedeni:** {results['termination_reason']}")
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">En İyi Başlangıç Skoru</div>
+        <div class="metric-label">Başlangıç Skoru</div>
         <div class="metric-value" style="color: #dc2626;">{results['initial_score']}</div>
         </div>""", unsafe_allow_html=True)
 
@@ -150,11 +160,18 @@ def render_tab10(params):
 
     with m4:
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Tamamlanan Jenerasyon</div>
+        <div class="metric-label">Jenerasyon</div>
         <div class="metric-value" style="color: #8b5cf6;">{results['generations_run']} Nesil</div>
         </div>""", unsafe_allow_html=True)
 
     with m5:
+        eval_c = results.get('eval_count', int(total_evaluations))
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
+        <div class="metric-value" style="color: #6366f1;">{eval_c:,} Adet</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Hesaplama Süresi</div>
         <div class="metric-value" style="color: #059669;">{results['exec_time_ms']} ms</div>
@@ -204,224 +221,27 @@ def render_tab10(params):
     g_col3, g_col4 = st.columns(2)
 
     with g_col3:
-        st.markdown("##### 3️⃣ Memetik Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
-        fig_ma_map = px.imshow(
-            results['schedule'],
-            labels=dict(x="Günler", y="Çalışanlar", color="Vardiya (0:OFF, 1:G, 2:A, 3:N)"),
-            x=[f"G{d+1}" for d in range(num_days)],
-            y=[w['name'] for w in results['workers']],
-            color_continuous_scale=[[0, '#cbd5e1'], [0.33, '#fde047'], [0.66, '#f97316'], [1.0, '#1e3a8a']]
-        )
-        fig_ma_map.update_layout(height=400)
-        st.plotly_chart(fig_ma_map, width="stretch", key="t10_fig_map")
+        render_schedule_heatmap(results['schedule'], results['workers'], num_days, key_prefix="t10_ma", title="3️⃣ Memetik Optimal Vardiya Matrisi Isı Haritası (Heatmap)")
 
     with g_col4:
-        st.markdown("##### 4️⃣ Memetik Çalışan İş Yükü ve Gece Nöbeti Dağılımı")
-        work_days = [np.sum(results['schedule'][i, :] > 0) for i in range(num_workers)]
-        night_days = [np.sum(results['schedule'][i, :] == 3) for i in range(num_workers)]
-        
-        df_ma_workload = pd.DataFrame({
-            "İşçi": [w['name'] for w in results['workers']],
-            "Toplam Çalışma": work_days,
-            "Gece Nöbeti": night_days
-        })
-        
-        fig_ma_wl = px.bar(
-            df_ma_workload,
-            x="İşçi",
-            y=["Toplam Çalışma", "Gece Nöbeti"],
-            barmode="group",
-            color_discrete_sequence=["#059669", "#dc2626"]
-        )
-        fig_ma_wl.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=400, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_ma_wl, width="stretch", key="t10_fig_wl")
+        render_workload_chart(results['schedule'], results['workers'], key_prefix="t10_ma", title="4️⃣ Memetik Çalışan İş Yükü ve Gece Nöbeti Dağılımı", color_seq=["#059669", "#dc2626"])
 
     g_col5, g_col6 = st.columns(2)
 
     with g_col5:
-        st.markdown("##### 5️⃣ Memetik Minimize Edilmiş Yumuşak Kısıt Cezaları (&min; Z)")
-        df_ma_penalties = pd.DataFrame({
-            "Kısıt Tipi": list(results['penalties'].keys()),
-            "Ceza Puanı": list(results['penalties'].values())
-        })
-        fig_ma_pen = px.bar(
-            df_ma_penalties,
-            x="Ceza Puanı",
-            y="Kısıt Tipi",
-            orientation="h",
-            text="Ceza Puanı",
-            color="Ceza Puanı",
-            color_continuous_scale="Reds"
-        )
-        fig_ma_pen.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, showlegend=False)
-        st.plotly_chart(fig_ma_pen, width="stretch", key="t10_fig_pen")
+        render_penalties_chart(results['penalties'], key_prefix="t10_ma", title="5️⃣ Memetik Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)")
 
     with g_col6:
-        st.markdown("##### 6️⃣ Memetik Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-        posta_data = []
-        for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-            p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-            if len(p_wids) > 0:
-                tot_w = np.sum(results['schedule'][p_wids, :] > 0)
-                tot_n = np.sum(results['schedule'][p_wids, :] == 3)
-                posta_data.append({"Posta": p, "Toplam Vardiya": tot_w, "Gece Vardiyası": tot_n})
-        
-        df_posta = pd.DataFrame(posta_data)
-        fig_posta = px.bar(
-            df_posta,
-            x="Posta",
-            y=["Toplam Vardiya", "Gece Vardiyası"],
-            barmode="group",
-            color_discrete_sequence=["#2563eb", "#dc2626"]
-        )
-        fig_posta.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_posta, width="stretch", key="t10_fig_posta")
+        render_posta_load_chart(results['schedule'], results['workers'], key_prefix="t10_ma", title="6️⃣ Memetik Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
 
     # 7. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    st.markdown("### 🏢 7️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-    shift_labels = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
-    shift_posta_rows = []
-    
-    for d in range(num_days):
-        for k in [1, 2, 3]:
-            for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-                p_wids = [w['id'] for w in results['workers'] if w['posta'] == p]
-                count_in_shift = sum(1 for wid in p_wids if results['schedule'][wid, d] == k)
-                shift_posta_rows.append({
-                    "Gün_Vardiya": f"G{d+1} - {shift_labels[k]}",
-                    "Gün": f"Gün {d+1:02d}",
-                    "Vardiya": shift_labels[k],
-                    "Posta": p,
-                    "Çalışan Sayısı": int(count_in_shift)
-                })
-
-    df_shift_posta = pd.DataFrame(shift_posta_rows)
-
-    fig_sp_all = px.bar(
-        df_shift_posta,
-        x="Gün_Vardiya",
-        y="Çalışan Sayısı",
-        color="Posta",
-        barmode="stack",
-        text="Çalışan Sayısı",
-        color_discrete_map={
-            "Posta A": "#2563eb",
-            "Posta B": "#059669",
-            "Posta C": "#d97706",
-            "Posta D": "#7c3aed"
-        }
-    )
-    fig_sp_all.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=450, legend=dict(orientation="h", y=1.15), xaxis_tickangle=-45)
-    st.plotly_chart(fig_sp_all, width="stretch", key="t10_sp_all")
-
-    st.divider()
-
-    # --- METASEZGİSEL ÇÖZÜCÜLERİN 4-YÖNLÜ BÜTÜNCÜL KARŞILAŞTIRMA MATRİSİ ---
-    st.markdown("### 📊 Tüm Metasezgisel Çözücülerin Bütüncül Karşılaştırma Matrisi (Sekme 7 - 8 - 9 - 10)")
-    st.markdown("Aşağıdaki tablo, Vardiya Çizelgeleme Problemi (NSP) çözümünde kullanılan **Tepeden Tırmanma (Sekme 7)**, **Tavlama Benzetimi (Sekme 8)**, **Genetik Algoritma (Sekme 9)** ve **Memetik Algoritma (Sekme 10)** metasezgisel yöntemlerinin metriklerini karşılaştırmaktadır.")
-
-    res7 = st.session_state.get('res_t7')
-    res8 = st.session_state.get('res_t8')
-    res9 = st.session_state.get('res_t9')
-    res10 = results
-
-    m_col1, m_col2, m_col3, m_col4 = st.columns(4)
-    with m_col1:
-        score_7_str = f"{res7['final_score']} Ceza Puanı" if res7 else "Henüz Çalıştırılmadı"
-        time_7_str = f"{res7['exec_time_ms']} ms" if res7 else "-"
-        st.markdown(f"""<div style="background-color:#fff7ed; border:1px solid #f97316; border-radius:8px; padding:12px; text-align:center;">
-        <h5 style="color:#c2410c; margin:0;">🏔️ Sekme 7: Hill Climbing</h5>
-        <div style="font-weight:bold; font-size:1.1rem; color:#1e293b; margin-top:5px;">{score_7_str}</div>
-        <div style="font-size:0.85rem; color:#64748b;">Çalışma Süresi: {time_7_str}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m_col2:
-        score_8_str = f"{res8['final_score']} Ceza Puanı" if res8 else "Henüz Çalıştırılmadı"
-        time_8_str = f"{res8['exec_time_ms']} ms" if res8 else "-"
-        st.markdown(f"""<div style="background-color:#f0fdf4; border:1px solid #16a34a; border-radius:8px; padding:12px; text-align:center;">
-        <h5 style="color:#15803d; margin:0;">🔥 Sekme 8: Simulated Annealing</h5>
-        <div style="font-weight:bold; font-size:1.1rem; color:#1e293b; margin-top:5px;">{score_8_str}</div>
-        <div style="font-size:0.85rem; color:#64748b;">Çalışma Süresi: {time_8_str}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m_col3:
-        score_9_str = f"{res9['final_score']} Ceza Puanı" if res9 else "Henüz Çalıştırılmadı"
-        time_9_str = f"{res9['exec_time_ms']} ms" if res9 else "-"
-        st.markdown(f"""<div style="background-color:#fef2f2; border:1px solid #ef4444; border-radius:8px; padding:12px; text-align:center;">
-        <h5 style="color:#b91c1c; margin:0;">🧬 Sekme 9: Genetik Algoritma</h5>
-        <div style="font-weight:bold; font-size:1.1rem; color:#1e293b; margin-top:5px;">{score_9_str}</div>
-        <div style="font-size:0.85rem; color:#64748b;">Çalışma Süresi: {time_9_str}</div>
-        </div>""", unsafe_allow_html=True)
-
-    with m_col4:
-        score_10_str = f"{res10['final_score']} Ceza Puanı" if res10 else "Henüz Çalıştırılmadı"
-        time_10_str = f"{res10['exec_time_ms']} ms" if res10 else "-"
-        st.markdown(f"""<div style="background-color:#eff6ff; border:2px solid #2563eb; border-radius:8px; padding:12px; text-align:center; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);">
-        <h5 style="color:#1d4ed8; margin:0;">🏆 Sekme 10: Memetik Algoritma</h5>
-        <div style="font-weight:bold; font-size:1.15rem; color:#059669; margin-top:5px;">{score_10_str}</div>
-        <div style="font-size:0.85rem; color:#64748b;">Çalışma Süresi: {time_10_str}</div>
-        </div>""", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # HTML Table
-    comp_html = """
-    <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:0.92rem; background-color:#ffffff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
-        <thead>
-            <tr style="background-color:#0f172a; color:#ffffff; text-align:left;">
-                <th style="padding:12px 15px; width:20%;">Karşılaştırma Kriteri</th>
-                <th style="padding:12px 15px; width:20%; color:#fdba74;">🏔️ Sekme 7: Hill Climbing</th>
-                <th style="padding:12px 15px; width:20%; color:#86efac;">🔥 Sekme 8: Simulated Annealing</th>
-                <th style="padding:12px 15px; width:20%; color:#fca5a5;">🧬 Sekme 9: Genetic Algorithm</th>
-                <th style="padding:12px 15px; width:20%; color:#93c5fd;">🏆 Sekme 10: Memetic Algorithm</th>
-            </tr>
-        </thead>
-        <tbody>
-            <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
-                <td style="padding:10px 15px; font-weight:bold; color:#334155;">Arama Paradigması</td>
-                <td style="padding:10px 15px;">Tek Noktalı Yöresel Arama</td>
-                <td style="padding:10px 15px;">Stokastik Termodinamik Kabul</td>
-                <td style="padding:10px 15px;">Popülasyon Bazlı Evrimsel Arama</td>
-                <td style="padding:10px 15px; font-weight:bold; color:#1d4ed8;">Hibrit: Global Evrim + Lokal HC Tamir</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0; background-color:#f8fafc;">
-                <td style="padding:10px 15px; font-weight:bold; color:#334155;">Çaprazlama Hasarı Tamiri</td>
-                <td style="padding:10px 15px;">Yok</td>
-                <td style="padding:10px 15px;">Yok</td>
-                <td style="padding:10px 15px; color:#dc2626;">❌ Yok (Dikiş hataları kalır)</td>
-                <td style="padding:10px 15px; color:#059669; font-weight:bold;">✅ Var (Çaprazlama dikiş noktaları anında tamir edilir)</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
-                <td style="padding:10px 15px; font-weight:bold; color:#334155;">Yerel Tuzaktan Kaçış</td>
-                <td style="padding:10px 15px; color:#c2410c;">Zayıf</td>
-                <td style="padding:10px 15px; color:#15803d;">İyi (Sıcaklık Sıçraması)</td>
-                <td style="padding:10px 15px; color:#1d4ed8;">Çok Üstün</td>
-                <td style="padding:10px 15px; color:#059669; font-weight:bold;">🏆 Mükemmel (Popülasyon + Lokal Tamir)</td>
-            </tr>
-            <tr style="border-bottom:1px solid #e2e8f0; background-color:#f8fafc;">
-                <td style="padding:10px 15px; font-weight:bold; color:#334155;">Hesaplama Hızı & Süre</td>
-                <td style="padding:10px 15px; color:#15803d; font-weight:bold;">Yıldırım Hızında (~50-1,000 ms)</td>
-                <td style="padding:10px 15px; color:#0284c7; font-weight:bold;">Çok Hızlı (~300-7,600 ms)</td>
-                <td style="padding:10px 15px; color:#d97706;">Orta (~3,000-50,000 ms)</td>
-                <td style="padding:10px 15px; color:#2563eb; font-weight:bold;">Dengeli Hibrit (~5,000-40,000 ms)</td>
-            </tr>
-        </tbody>
-    </table>
-    """
-    st.markdown(comp_html, unsafe_allow_html=True)
+    render_shift_posta_stacked_chart(results['schedule'], results['workers'], num_days, key_prefix="t10_ma", title="7️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
 
     st.divider()
 
     # --- FULL SCHEDULE MATRIX TABLE ---
-    st.markdown("### 🗓️ Memetik Algoritma Tarafından Üretilen Tam Vardiya Çizelgesi")
-    shift_names = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
-    matrix_data = []
+    render_schedule_matrix_table(results['schedule'], results['workers'], num_days, title="🗓️ Memetik Algoritma Tarafından Üretilen Tam Vardiya Çizelgesi")
     
-    for i, w in enumerate(results['workers']):
-        row = {"İşçi": w['name'], "Posta": w['posta'], "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi"}
-        for d in range(num_days):
-            row[f"Gün {d+1}"] = shift_names[results['schedule'][i, d]]
-        matrix_data.append(row)
-
-    df_ma_view = pd.DataFrame(matrix_data)
-    st.dataframe(df_ma_view, width="stretch", hide_index=True)
+    # --- KİŞİSEL İZİN TALEPLERİ DETAY RAPORU ---
+    if 'request_details' in results:
+        render_request_details_expander(results['request_details'])

@@ -10,6 +10,16 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 from algorithms.greedy_solver import run_greedy_algorithm
+from views.common_components import (
+    render_schedule_heatmap,
+    render_workload_chart,
+    render_penalties_chart,
+    render_posta_load_chart,
+    render_shift_posta_stacked_chart,
+    render_schedule_matrix_table,
+    render_request_details_expander,
+    render_worker_profiles_table
+)
 
 def render_tab4(params):
     """Sekme 4 içeriğini çizer: Greedy Simülasyonu, Sert İhlal Analizi, İzin Talepleri ve Grafikler."""
@@ -33,6 +43,23 @@ def render_tab4(params):
     penalty_weights_dict = params['weights']
     custom_workers = params['custom_workers']
 
+    # HESAPLAMA YÜKÜ & ÖN-ANALİZ PANELİ
+    cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
+    t4_time_str = f"{cost_ms:.2f} ms"
+
+    st.markdown("#### 🧮 Hesaplama Yükü & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+    c_est1, c_est2 = st.columns(2)
+    with c_est1:
+        st.metric(
+            label="📊 Tahmini Ceza Değerlendirme",
+            value="1 Çağrı",
+            delta=f"{cost_ms:.2f} ms * 1 = {t4_time_str}",
+            delta_color="off",
+            help="Doğrudan tek geçişli Greedy ataması sonrası 1 tam ceza değerlendirmesi yapılır."
+        )
+    with c_est2:
+        st.metric(label="🔍 Arama Uzayı Boyutu", value=f"4^{num_days}", help="Tüm olası çizelgeler arasından tek yönlü sezgiyle seçim yapılır.")
+
     st.divider()
 
     run_btn = st.button("🚀 Greedy Simülasyonu Çalıştır", type="primary", width="stretch", key="btn_run_t4")
@@ -51,7 +78,7 @@ def render_tab4(params):
         schedule_matrix, worker_list, penalty_dict, total_score, hard_viols_count, hard_logs, req_details = st.session_state["res_t4"]
 
     # --- METRİK KARTLARI ---
-    m1, m2, m3, m4, m5 = st.columns(5)
+    m1, m2, m3, m4, m5, m6 = st.columns(6)
 
     with m1:
         st.markdown(f"""<div class="metric-card">
@@ -60,17 +87,17 @@ def render_tab4(params):
         </div>""", unsafe_allow_html=True)
 
     with m2:
-        status_text = "GEÇERLİ (Feasible)" if hard_viols_count == 0 else "❌ GEÇERSİZ (Infeasible)"
+        status_text = "GEÇERLİ" if hard_viols_count == 0 else "❌ GEÇERSİZ"
         status_color = "#059669" if hard_viols_count == 0 else "#dc2626"
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Sert Kısıt Durumu</div>
-        <div class="metric-value" style="color: {status_color}; font-size: 1.25rem;">{status_text}</div>
+        <div class="metric-value" style="color: {status_color}; font-size: 1.15rem;">{status_text}</div>
         </div>""", unsafe_allow_html=True)
 
     with m3:
         hard_color = "#059669" if hard_viols_count == 0 else "#dc2626"
         st.markdown(f"""<div class="metric-card">
-        <div class="metric-label">Sert Kısıt İhlal Sayısı</div>
+        <div class="metric-label">Sert Kısıt İhlali</div>
         <div class="metric-value" style="color: {hard_color};">{hard_viols_count}</div>
         </div>""", unsafe_allow_html=True)
 
@@ -82,10 +109,16 @@ def render_tab4(params):
         </div>""", unsafe_allow_html=True)
 
     with m5:
+        st.markdown(f"""<div class="metric-card">
+        <div class="metric-label">Ceza Çağrısı (Evaluator)</div>
+        <div class="metric-value" style="color: #2563eb;">1 Adet</div>
+        </div>""", unsafe_allow_html=True)
+
+    with m6:
         total_assignments = np.sum(schedule_matrix > 0)
         st.markdown(f"""<div class="metric-card">
         <div class="metric-label">Toplam Vardiya Ataması</div>
-        <div class="metric-value" style="color: #2563eb;">{total_assignments}</div>
+        <div class="metric-value" style="color: #475569;">{total_assignments}</div>
         </div>""", unsafe_allow_html=True)
 
     st.divider()
@@ -112,20 +145,7 @@ def render_tab4(params):
     st.divider()
 
     # --- PERSONEL YETKİNLİK VE MYK SERTİFİKA KADRO TABLOSU ---
-    st.markdown("### 🪪 Aktif Personel Yetkinlik ve MYK Sertifika Kadro Listesi")
-    profile_rows = []
-    for w in worker_list:
-        skills_formatted = ", ".join(sorted(list(w['skills'])))
-        profile_rows.append({
-            "İşçi Adı": w['name'],
-            "Posta": w['posta'],
-            "Unvan": "Kıdemli Usta" if w['is_usta'] else "Operatör/İşçi",
-            "Sahip Olduğu MYK Sertifika & Ehliyetler": skills_formatted,
-            "Talep Ettiği İzin Günü": f"Gün {w['pref_off'] + 1}"
-        })
-
-    df_profiles = pd.DataFrame(profile_rows)
-    st.dataframe(df_profiles, width="stretch", hide_index=True)
+    render_worker_profiles_table(worker_list, title="🪪 Aktif Personel Yetkinlik ve MYK Sertifika Kadro Listesi")
 
     st.divider()
 
@@ -251,119 +271,15 @@ def render_tab4(params):
     viz_col3, viz_col4 = st.columns(2)
 
     with viz_col3:
-        st.markdown("##### 3️⃣ Yumuşak Kısıt Ceza Puanı Dağılımı")
-        df_penalties = pd.DataFrame({
-            "Kısıt Tipi": list(penalty_dict.keys()),
-            "Ceza Puanı": list(penalty_dict.values())
-        })
-        fig_pen = px.bar(
-            df_penalties,
-            x="Ceza Puanı",
-            y="Kısıt Tipi",
-            orientation="h",
-            text="Ceza Puanı",
-            color="Ceza Puanı",
-            color_continuous_scale="Reds"
-        )
-        fig_pen.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, showlegend=False)
-        st.plotly_chart(fig_pen, width="stretch", key="t4_penalties")
+        render_penalties_chart(penalty_dict, key_prefix="t4", title="3️⃣ Yumuşak Kısıt Ceza Puanı Dağılımı")
 
     with viz_col4:
-        st.markdown("##### 4️⃣ Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
-        posta_data = []
-        for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-            p_wids = [w['id'] for w in worker_list if w['posta'] == p]
-            if len(p_wids) > 0:
-                tot_w = np.sum(schedule_matrix[p_wids, :] > 0)
-                tot_n = np.sum(schedule_matrix[p_wids, :] == 3)
-                posta_data.append({"Posta": p, "Toplam Vardiya": tot_w, "Gece Vardiyası": tot_n})
-        
-        df_posta = pd.DataFrame(posta_data)
-        fig_posta = px.bar(
-            df_posta,
-            x="Posta",
-            y=["Toplam Vardiya", "Gece Vardiyası"],
-            barmode="group",
-            color_discrete_sequence=["#2563eb", "#dc2626"]
-        )
-        fig_posta.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=340, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_posta, width="stretch", key="t4_posta_load")
+        render_posta_load_chart(schedule_matrix, worker_list, key_prefix="t4", title="4️⃣ Posta Bazında (A, B, C, D) Gece Nöbeti ve Yük Dağılımı")
 
     # 5. GÜN VE VARDİYA BAZINDA POSTA DAĞILIMI
-    st.markdown("### 🏢 5️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
-    shift_labels = {1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
-    shift_posta_rows = []
-    
-    for d in range(num_days):
-        for k in [1, 2, 3]:
-            for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']:
-                p_wids = [w['id'] for w in worker_list if w['posta'] == p]
-                count_in_shift = sum(1 for wid in p_wids if schedule_matrix[wid, d] == k)
-                shift_posta_rows.append({
-                    "Gün_Vardiya": f"G{d+1} - {shift_labels[k]}",
-                    "Gün": f"Gün {d+1:02d}",
-                    "Vardiya": shift_labels[k],
-                    "Posta": p,
-                    "Çalışan Sayısı": int(count_in_shift)
-                })
-
-    df_shift_posta = pd.DataFrame(shift_posta_rows)
-
-    v_tab1, v_tab2 = st.tabs(["📊 Tüm Günler & Vardiyalar Bütüncül Grafik", "🔍 Vardiya Türüne Göre Ayrıştırılmış"])
-
-    with v_tab1:
-        fig_sp_all = px.bar(
-            df_shift_posta,
-            x="Gün_Vardiya",
-            y="Çalışan Sayısı",
-            color="Posta",
-            barmode="stack",
-            text="Çalışan Sayısı",
-            color_discrete_map={
-                "Posta A": "#2563eb",
-                "Posta B": "#059669",
-                "Posta C": "#d97706",
-                "Posta D": "#7c3aed"
-            }
-        )
-        fig_sp_all.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=450, legend=dict(orientation="h", y=1.15), xaxis_tickangle=-45)
-        st.plotly_chart(fig_sp_all, width="stretch", key="t4_sp_all")
-
-    with v_tab2:
-        selected_shift = st.selectbox("İncelenecek Vardiyayı Seçin:", ["Gündüz (08-16)", "Akşam (16-24)", "Gece (24-08)"], key="t4_vselect")
-        df_sub = df_shift_posta[df_shift_posta["Vardiya"] == selected_shift]
-        
-        fig_sp_sub = px.bar(
-            df_sub,
-            x="Gün",
-            y="Çalışan Sayısı",
-            color="Posta",
-            barmode="group",
-            text="Çalışan Sayısı",
-            color_discrete_map={
-                "Posta A": "#2563eb",
-                "Posta B": "#059669",
-                "Posta C": "#d97706",
-                "Posta D": "#7c3aed"
-            }
-        )
-        fig_sp_sub.update_layout(paper_bgcolor="#ffffff", plot_bgcolor="#f8fafc", height=400, legend=dict(orientation="h", y=1.15))
-        st.plotly_chart(fig_sp_sub, width="stretch", key="t4_sp_sub")
+    render_shift_posta_stacked_chart(schedule_matrix, worker_list, num_days, key_prefix="t4", title="5️⃣ Gün ve Vardiya Bazında Posta Dağılımı (Gündüz, Akşam ve Gece Vardiyalarında Hangi Postadan Kaç Kişi Var?)")
 
     st.divider()
 
     # --- VARDİYA ÇİZELGESİ MATRIX TABLOSU ---
-    st.markdown("### 🗓️ Tam Vardiya Çizelge Tablosu")
-    shift_names = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
-    matrix_data = []
-    
-    for w in worker_list:
-        # DÜZELTME 5: enumerate index (i) yerine w['id'] kullanılıyor.
-        # custom_workers durumunda i != w['id'] olabileceğinden yanlış hücre okunuyordu.
-        row = {"İşçi": w['name'], "Posta": w['posta'], "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi"}
-        for d in range(num_days):
-            row[f"Gün {d+1}"] = shift_names[schedule_matrix[w['id'], d]]
-        matrix_data.append(row)
-
-    df_schedule_view = pd.DataFrame(matrix_data)
-    st.dataframe(df_schedule_view, width="stretch", hide_index=True)
+    render_schedule_matrix_table(schedule_matrix, worker_list, num_days, title="🗓️ Tam Vardiya Çizelge Tablosu")

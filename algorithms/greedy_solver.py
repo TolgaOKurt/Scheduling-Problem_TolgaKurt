@@ -10,6 +10,7 @@
 import numpy as np
 import pandas as pd
 from algorithms.worker_manager import generate_worker_profiles
+from algorithms.penalty_calculator import calculate_full_penalties, build_worker_request_details
 
 def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solver_mode="Naif Greedy (Standart Açgözlü Yaklaşım)", custom_workers=None):
     """
@@ -133,79 +134,44 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                         log_msg = f"⚠️ Sert Kısıt 2 İhlali [Gün {d+1} - {shift_names[k]}]: Eksik Kritik Sertifika ➔ Vardiyada '{req_skill}' ehliyetli eleman yok!"
                         hard_violation_logs.append(log_msg)
 
-    # Kişisel İzin Talepleri Detay Takibi
-    request_details = []
-    for w in workers:
-        wid = w['id']
-        p_day = w['pref_off']
-        assigned_shift = schedule[wid, p_day] if p_day < n_days else 0
-        is_fulfilled = (assigned_shift == 0)
-        
-        request_details.append({
-            'id': wid,
-            'name': w['name'],
-            'posta': w['posta'],
-            'unvan': "Kıdemli Usta" if w['is_usta'] else "Operatör/İşçi",
-            'talep_gun': f"Gün {p_day + 1}",
-            'talep_gun_index': p_day,
-            'atandi_vardiya': "OFF (İzin)" if is_fulfilled else ("Gündüz" if assigned_shift==1 else ("Akşam" if assigned_shift==2 else "Gece")),
-            'durum': "✅ Karşılandı (OFF verildi)" if is_fulfilled else "❌ İhlal Edildi (Vardiyaya Yazıldı)",
-            'ceza_puani': 0 if is_fulfilled else weights['pref_off']
-        })
+    # Kişisel İzin Talepleri Detay Takibi (Merkezi Yardımcı Fonksiyon)
+    request_details = build_worker_request_details(schedule, workers, n_days, weights)
     
-    # YUMUŞAK KISIT CEZALARI VE POSTA TAKIM BÜTÜNLÜĞÜ HESABI
-    w_posta = weights.get('posta', 35)
-    
-    penalties = {
-        'Posta Takım Bütünlüğü İhlali': 0,
-        'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
-        'Gece Nöbeti Dengesizliği': 0,
-        'Kıdem & MYK Sertifika Eksikliği': 0,
-        'Kişisel İzin İhlali': 0
-    }
-    
-    # 1. Posta Takım Bütünlüğü İhlali (Oransal Hesaplama)
-    for d in range(n_days):
-        for p in postas:
-            p_wids = [w['id'] for w in workers if w['posta'] == p]
-            active_shifts = [schedule[wid, d] for wid in p_wids if schedule[wid, d] != 0]
-            if len(active_shifts) > 1:
-                counts = [active_shifts.count(s) for s in set(active_shifts)]
-                majority = max(counts)
-                deviated = len(active_shifts) - majority
-                penalties['Posta Takım Bütünlüğü İhlali'] += deviated * w_posta
-    
-    # 2. Sirkadiyen Ritim İhlali
-    # DÜZELTME 4: Atama döngüsünde Akşam->Gündüz geçişi sert kısıt olarak engelleniyor;
-    # bu yüzden normal akışta bu ceza teorik olarak 0 kalır. Yine de burada tutulur:
-    # (a) custom_workers senaryolarında bypass olabilir, (b) Akıllı Greedy modunda
-    # staggered_off_days filtresi bu geçişi dolaylı olarak yaratabilir.
-    for wid in range(len(workers)):
-        actual_wid = workers[wid]['id']
-        for d in range(n_days - 1):
-            if schedule[actual_wid, d] == 2 and schedule[actual_wid, d+1] == 1:
-                penalties['Sirkadiyen Ritim İhlali (Akşam->Gündüz)'] += weights['circadian']
-    
-    # 3. Gece Nöbeti Dengesizliği (sadece aktif worker ID'leri üzerinden hesapla)
-    active_night_counts = np.array([night_counts[w['id']] for w in workers])
-    avg_night = np.mean(active_night_counts)
-    for cnt in active_night_counts:
-        diff = abs(cnt - avg_night)
-        penalties['Gece Nöbeti Dengesizliği'] += int(diff * weights['night_imb'])
-        
-    # 4. Kıdem Eksikliği
-    worker_map = {w['id']: w for w in workers}
-    for d in range(n_days):
-        for k in [1, 2, 3]:
-            shift_wids = [w['id'] for w in workers if schedule[w['id'], d] == k]
-            ustas = sum(1 for wid in shift_wids if worker_map[wid]['is_usta'])
-            if len(shift_wids) > 0 and ustas == 0:
-                penalties['Kıdem & MYK Sertifika Eksikliği'] += weights['exp_mix']
-                
-    # 5. Kişisel İzin İhlali
-    penalties['Kişisel İzin İhlali'] = sum(req['ceza_puani'] for req in request_details)
-            
-    total_penalty = sum(penalties.values())
+    # YUMUŞAK KISIT CEZALARI VE POSTA TAKIM BÜTÜNLÜĞÜ HESABI (MERKEZİ MOTOR)
+    penalties, total_penalty = calculate_full_penalties(schedule, workers, n_workers, n_days, weights)
     hard_violations_count = len(hard_violation_logs)
     
     return schedule, workers, penalties, total_penalty, hard_violations_count, hard_violation_logs, request_details
+
+
+def get_best_greedy_initial_solution(n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=None):
+    """
+    Hem Naif Greedy hem de Akıllı Kademeli Greedy çözücülerini saliseler içinde çalıştırıp
+    sert kısıtları ihlal etmeyen ve toplam ceza puanı EN DÜŞÜK olan en iyi başlangıç çözümünü döndürür.
+    (Best-of-Heuristics Seeding)
+    """
+    # 1. Naif Greedy
+    res_naif = run_greedy_algorithm(
+        n_workers, n_days, r_day, r_eve, r_night, weights,
+        solver_mode="Naif Greedy (Standart Açgözlü Yaklaşım)", custom_workers=custom_workers
+    )
+    
+    # 2. Akıllı Kademeli Greedy
+    res_smart = run_greedy_algorithm(
+        n_workers, n_days, r_day, r_eve, r_night, weights,
+        solver_mode="Akıllı Kademeli Greedy (İzinleri Günlere Yayan)", custom_workers=custom_workers
+    )
+    
+    s_naif, w_naif, p_naif, score_naif, hard_naif, logs_naif, req_naif = res_naif
+    s_smart, w_smart, p_smart, score_smart, hard_smart, logs_smart, req_smart = res_smart
+    
+    # Eğer her ikisi de sert kısıtları sağlıyorsa, ceza puanı daha düşük olanı seç
+    if hard_naif == 0 and hard_smart == 0:
+        if score_naif <= score_smart:
+            return res_naif
+        else:
+            return res_smart
+    elif hard_naif == 0:
+        return res_naif
+    else:
+        return res_smart
