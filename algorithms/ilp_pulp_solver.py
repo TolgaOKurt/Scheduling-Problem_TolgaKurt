@@ -24,12 +24,13 @@ from algorithms.greedy_solver import get_best_greedy_initial_solution
 from algorithms.solver_contract import build_standard_solver_result
 
 
-def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weights, workers, return_breakdown=False):
+def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weights, workers=None, custom_workers=None, return_breakdown=False):
     """
     Tam Sayılı (Integer) kısıtlar gevşetilerek (Continuous LP Relaxation) ve analitik
     kaçınılmaz cezalar hesaplanarak problemin GERÇEK TEORİK ALT SINIRINI (Best Bound) bulur.
     return_breakdown=True ise (total_lb, breakdown_dict, reasons_list) döndürür.
     """
+    workers = custom_workers if custom_workers is not None else (workers if workers is not None else generate_worker_profiles(n_workers, n_days, randomize=False))
     w_night = weights.get('night_imb', 25)
     w_exp = weights.get('exp_mix', 30)
     w_pref = weights.get('pref_off', 40)

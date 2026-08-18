@@ -683,7 +683,9 @@ def render_metaheuristic_metric_cards(results, move_label="Kabul Edilen Hamle", 
 
     meta = results.get('meta', {})
     with m5:
-        if is_population:
+        if 'solutions_found' in meta:
+            val_txt = f"{meta['solutions_found']} Çözüm"
+        elif is_population:
             gens = meta.get('generations', results.get('total_iterations', '-'))
             val_txt = f"{gens} Nesil"
         else:

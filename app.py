@@ -22,6 +22,7 @@ from views.tab11_tabu_search import render_tab11
 from views.tab12_vns import render_tab12
 from views.tab13_pso import render_tab13
 from views.tab14_aco import render_tab14
+from views.tab15_cp_sat import render_tab15
 from views.tab_comparison import render_tab_comparison
 
 
@@ -147,8 +148,8 @@ with c4_3:
         st.session_state["active_tab"] = "tab12"
         st.rerun()
 
-# 5. SATIR: SÜRÜ ZEKASI & BİYO-ESİNLENMELİ METASEZGİSELLER (2 KOLON)
-c5_1, c5_2 = st.columns(2)
+# 5. SATIR: SÜRÜ ZEKASI, BİYO-ESİNLENMELİ & KISIT PROGRAMLAMA ÇÖZÜCÜLERİ (3 KOLON)
+c5_1, c5_2, c5_3 = st.columns(3)
 
 with c5_1:
     btn_type_t13 = "primary" if st.session_state["active_tab"] == "tab13" else "secondary"
@@ -160,6 +161,12 @@ with c5_2:
     btn_type_t14 = "primary" if st.session_state["active_tab"] == "tab14" else "secondary"
     if st.button("🐜 Sekme 14: Ant Colony Optimization (ACO)", key="btn_t14", width="stretch", type=btn_type_t14):
         st.session_state["active_tab"] = "tab14"
+        st.rerun()
+
+with c5_3:
+    btn_type_t15 = "primary" if st.session_state["active_tab"] == "tab15" else "secondary"
+    if st.button("⚡ Sekme 15: Google CP-SAT", key="btn_t15", width="stretch", type=btn_type_t15):
+        st.session_state["active_tab"] = "tab15"
         st.rerun()
 
 # 6. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
@@ -203,5 +210,7 @@ elif curr == "tab13":
     render_tab13(global_params)
 elif curr == "tab14":
     render_tab14(global_params)
+elif curr == "tab15":
+    render_tab15(global_params)
 elif curr == "tab_comparison":
     render_tab_comparison(global_params)

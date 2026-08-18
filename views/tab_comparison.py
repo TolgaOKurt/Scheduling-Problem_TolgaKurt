@@ -27,6 +27,7 @@ from algorithms.tabu_search_solver import run_tabu_search
 from algorithms.vns_solver import run_variable_neighborhood_search
 from algorithms.pso_solver import run_particle_swarm_optimization
 from algorithms.aco_solver import run_ant_colony_optimization
+from algorithms.cp_sat_solver import solve_cp_sat
 
 def render_tab_comparison(params):
     """Son sekme içeriğini çizer: Tüm Çözücülerin Bütüncül Karşılaştırması ve Benchmark Analizi."""
@@ -132,11 +133,16 @@ def render_tab_comparison(params):
         st.session_state["res_t13"] = res_t13
 
         # 13. Ant Colony Optimization (ACO)
-        progress_bar.progress(100, text="13/13: Ant Colony Optimization (ACO) çözülüyor...")
+        progress_bar.progress(93, text="13/14: Ant Colony Optimization (ACO) çözülüyor...")
         res_t14 = run_ant_colony_optimization(num_workers, num_days, req_day, req_eve, req_night, weights, n_ants=20, max_iterations=60, evaporation_rate=0.15, alpha=1.0, beta=2.0, seed=42, custom_workers=custom_workers)
         st.session_state["res_t14"] = res_t14
 
-        st.success("✅ **Benchmark Tamamlandı:** Tüm 13 çözücü (3 Greedy + CSP + ILP + 8 Metasezgisel) aynı parametreler ve kadro üzerinde başarıyla çalıştırıldı!")
+        # 14. Google CP-SAT (Constraint Programming)
+        progress_bar.progress(100, text="14/14: Google CP-SAT Optimizasyonu çözülüyor...")
+        res_t15 = solve_cp_sat(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=10.0, num_threads=8, custom_workers=custom_workers)
+        st.session_state["res_t15"] = res_t15
+
+        st.success("✅ **Benchmark Tamamlandı:** Tüm 14 çözücü (3 Greedy + CSP + ILP + 8 Metasezgisel + Google CP-SAT) aynı parametreler ve kadro üzerinde başarıyla çalıştırıldı!")
 
     st.divider()
 
@@ -169,6 +175,7 @@ def render_tab_comparison(params):
     res12 = st.session_state.get('res_t12')
     res13 = st.session_state.get('res_t13')
     res14 = st.session_state.get('res_t14')
+    res15 = st.session_state.get('res_t15')
 
     # --- TEORİK ALT SINIR (THEORETICAL LOWER BOUND / BEST BOUND) ---
     try:
@@ -293,13 +300,15 @@ def render_tab_comparison(params):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 2. Satır: 🏛️ Kısıt Tatmin & Matematiksel Kesin Çözücüler (Sekme 5 & 6)
-    st.markdown("##### 🏛️ 2. Kısıt Tatmin & Matematiksel Kesin Çözücüler (Sekme 5 & 6)")
-    c1, c2 = st.columns(2)
+    # 2. Satır: 🏛️ Kısıt Tatmin & Matematiksel Kesin Çözücüler (Sekme 5, 6 & 15)
+    st.markdown("##### 🏛️ 2. Kısıt Tatmin & Matematiksel Kesin Çözücüler (Sekme 5, 6 & 15)")
+    c1, c2, c3 = st.columns(3)
     with c1:
-        render_leaderboard_card("🔍 Sekme 5: CSP Backtracking (Kısıt Tatmin)", res5, "#f8fafc", "#64748b", "#334155", is_meta=False)
+        render_leaderboard_card("🔍 Sekme 5: CSP Backtracking", res5, "#f8fafc", "#64748b", "#334155", is_meta=False)
     with c2:
-        render_leaderboard_card("🎯 Sekme 6: ILP / MILP (PuLP Matematiksel Optimizasyon)", res6, "#eff6ff", "#2563eb", "#1d4ed8", is_meta=False)
+        render_leaderboard_card("🎯 Sekme 6: ILP / MILP (PuLP CBC)", res6, "#eff6ff", "#2563eb", "#1d4ed8", is_meta=False)
+    with c3:
+        render_leaderboard_card("⚡ Sekme 15: Google CP-SAT (OR-Tools)", res15, "#eff6ff", "#3b82f6", "#1e40af", is_meta=False)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -350,6 +359,7 @@ def render_tab_comparison(params):
         ("Sekme 12: VNS", res12, "Metasezgisel"),
         ("Sekme 13: Discrete PSO", res13, "Metasezgisel"),
         ("Sekme 14: Ant Colony (ACO)", res14, "Metasezgisel"),
+        ("Sekme 15: Google CP-SAT", res15, "Matematiksel"),
     ]
     for s_name, s_res, s_type in solvers_catalog:
         if s_res and s_res.get('final_score') is not None:
@@ -444,7 +454,9 @@ def render_tab_comparison(params):
                 ("Sekme 10: Memetic Algo", res10),
                 ("Sekme 11: Tabu Search", res11),
                 ("Sekme 12: VNS", res12),
-                ("Sekme 13: Discrete PSO", res13)
+                ("Sekme 13: Discrete PSO", res13),
+                ("Sekme 14: Ant Colony (ACO)", res14),
+                ("Sekme 15: Google CP-SAT", res15)
             ]:
                 if res_obj and 'penalties' in res_obj:
                     for k_type, p_val in res_obj['penalties'].items():
@@ -507,11 +519,12 @@ def render_tab_comparison(params):
         <h4 style="color: #1d4ed8; margin-top: 0;">🏛️ 1. Matematiksel & Kesin (Exact)</h4>
         <p style="font-size: 0.88rem; color: #1e293b;"><b>Dahil Olan Yöntemler:</b></p>
         <ul style="font-size: 0.85rem; color: #334155; padding-left: 18px;">
-            <li><b>ILP / MILP (Sekme 6):</b> Tam matematiksel formülasyon, Dal-Sınır (Branch & Bound) ile %100 küresel optimum (MIP Gap %0).</li>
+            <li><b>ILP / MILP (Sekme 6):</b> Klasik Doğrusal Programlama, Simplex ve Dal-Sınır (Branch & Bound) ile %100 küresel optimum.</li>
+            <li><b>Google CP-SAT (Sekme 15):</b> Kısıt Programlama, SAT tabanlı LCG/CDCL ve çok çekirdekli LNS portföy motoru.</li>
             <li><b>CSP Backtracking (Sekme 5):</b> Kısıt tatmin çerçevesi, arama ağacı budama (Pruning) ve geri izleme.</li>
         </ul>
         <div style="font-size: 0.82rem; background-color: #dbeafe; padding: 6px 10px; border-radius: 6px; color: #1e40af; font-weight: bold;">
-            🏆 Güçlü Yönü: %100 Matematiksel Garanti
+            🏆 Güçlü Yönü: %100 Matematiksel Garanti & Kanıtlanmış Alt Sınır
         </div>
         </div>
         """, unsafe_allow_html=True)
@@ -538,7 +551,7 @@ def render_tab_comparison(params):
         <p style="font-size: 0.88rem; color: #1e293b;"><b>Dahil Olan Yöntemler:</b></p>
         <ul style="font-size: 0.85rem; color: #334155; padding-left: 18px;">
             <li><b>Tek Noktalı (Yörünge):</b> Hill Climbing (Sekme 7), Simulated Annealing (Sekme 8), Tabu Search (Sekme 11), VNS (Sekme 12).</li>
-            <li><b>Popülasyon, Sürü & Hibrit:</b> Genetic Algorithm (Sekme 9), Memetic Algorithm (Sekme 10), Particle Swarm Optimization (Sekme 13).</li>
+            <li><b>Popülasyon, Sürü & Hibrit:</b> Genetic Algorithm (Sekme 9), Memetic Algorithm (Sekme 10), PSO (Sekme 13), ACO (Sekme 14).</li>
         </ul>
         <div style="font-size: 0.82rem; background-color: #dcfce7; padding: 6px 10px; border-radius: 6px; color: #166534; font-weight: bold;">
             🌟 Güçlü Yönü: Büyük Tesislerde Üstün Çözüm
@@ -560,14 +573,14 @@ def render_tab_comparison(params):
             "Arama Uzayı Stratejisi",
             "Hafıza & Öğrenme Yeteneği"
         ],
-        "🏛️ Matematiksel / Kesin (ILP / CSP)": [
+        "🏛️ Matematiksel / Kesin (ILP / CP-SAT / CSP)": [
             "🏆 %100 Küresel Optimum Garantisi (MIP Gap %0)",
-            "⏱️ Boyuta Duyarlı / Üstel Artış (ILP: 500 ms - 15+ sn, CSP: 10 - 300 ms)",
-            "🔴 Zayıf (N > 40 personelde Dal-Sınır kombinatoryal patlama ve Timeout)",
-            "❌ İhtiyaç Yok (Kesin sınır budaması yapar)",
+            "⏱️ Boyuta Duyarlı / Üstel Artış (ILP: 500 ms - 15+ sn, CP-SAT: 100 ms - 10 sn)",
+            "🟢 CP-SAT Güçlü (LNS ile), ILP Orta (N > 40 personelde Dal-Sınır yavaşlaması)",
+            "❌ İhtiyaç Yok (Kesin sınır budaması ve SAT maddeleri yapar)",
             "🛡️ %100 Matematiksel Feasibility Kanıtı",
-            "Arama ağacı taraması ve Simplex gevşetmesi",
-            "Dal-sınır ağaç düğümleri belleği"
+            "Simplex gevşetmesi (ILP) veya SAT Çatışma Öğrenimi & LNS (CP-SAT)",
+            "Dal-sınır ağacı (ILP) ve CDCL Çatışma Maddesi Hafızası (CP-SAT)"
         ],
         "⚡ Sezgisel / Açgözlü (Greedy)": [
             "⚠️ Garanti Yok (Miyop / Local Myopic karar)",
@@ -578,14 +591,14 @@ def render_tab_comparison(params):
             "Adım adım doğrudan inşa (Constructive)",
             "❌ Yok (Hafızasız, kural tabanlı)"
         ],
-        "🧬 Metasezgisel (HC / SA / GA / MA / TS / VNS / PSO)": [
+        "🧬 Metasezgisel (HC / SA / GA / MA / TS / VNS / PSO / ACO)": [
             "🌟 Yüksek Kaliteli Optimuma Çok Yakın Çözüm (%98-99)",
             "🚀 Hızlı & Öngörülebilir (~50 ms - 8,000 ms, O(K·Komşuluk / Sürü))",
             "🟢 Mükemmel (Devasa endüstriyel tesislerde timeout olmadan kesintisiz)",
             "🏆 Üstün (Metropolis, Çaprazlama, Tabu Hafızası ve Sürü Zekası ile kaçar)",
             "🛡️ Sert Kısıt Korumalı Akıllı Takas Operatörleri",
-            "Komşuluk araştırması, vadi aşımı, genetik evrim ve parçacık sürü uçuşu",
-            "Popülasyon gen havuzu, Tabu Listesi veya Bilişsel/Sosyal Sürü Hafızası"
+            "Komşuluk araştırması, vadi aşımı, genetik evrim ve feromon/sürü uçuşu",
+            "Popülasyon gen havuzu, Tabu Listesi veya Feromon İzi / Sürü Hafızası"
         ]
     })
     st.dataframe(df_paradigm, width="stretch", hide_index=True)
@@ -599,9 +612,9 @@ def render_tab_comparison(params):
     with u_col1:
         st.markdown("""
         <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 14px; border-radius: 8px; height: 100%;">
-        <div style="font-weight: bold; color: #1d4ed8; font-size: 0.95rem; margin-bottom: 6px;">🏛️ Matematiksel / Kesin (ILP & CSP)</div>
+        <div style="font-weight: bold; color: #1d4ed8; font-size: 0.95rem; margin-bottom: 6px;">🏛️ Matematiksel / Kesin (ILP & CP-SAT)</div>
         <p style="font-size: 0.88rem; color: #334155; line-height: 1.5; margin: 0;">
-        <b>En İdeal Kullanım Alanı:</b> Küçük ve orta ölçekli kadrolarda (<i>N</i> &le; 30), yasal denetimlerde ve yönetim kuruluna <i>"Matematiksel olarak bundan daha az ceza puanı imkansızdır"</i> diyebilmek için %100 kanıtlanmış küresel optimum arandığında.
+        <b>En İdeal Kullanım Alanı:</b> Yasal denetimlerde ve yönetim kuruluna <i>"Matematiksel olarak bundan daha az ceza puanı imkansızdır"</i> diyebilmek için %100 kanıtlanmış küresel optimum veya kanıtlanmış alt sınır (Best Bound) arandığında.
         </p>
         </div>
         """, unsafe_allow_html=True)
@@ -619,12 +632,104 @@ def render_tab_comparison(params):
     with u_col3:
         st.markdown("""
         <div style="background-color: #f0fdf4; border-left: 4px solid #059669; padding: 14px; border-radius: 8px; height: 100%;">
-        <div style="font-weight: bold; color: #047857; font-size: 0.95rem; margin-bottom: 6px;">🧬 Metasezgisel (HC, SA, GA, MA, TS, VNS, PSO)</div>
+        <div style="font-weight: bold; color: #047857; font-size: 0.95rem; margin-bottom: 6px;">🧬 Metasezgisel (HC, SA, GA, MA, TS, VNS, PSO, ACO)</div>
         <p style="font-size: 0.88rem; color: #334155; line-height: 1.5; margin: 0;">
-        <b>En İdeal Kullanım Alanı:</b> Yüzlerce personelin ve haftaların olduğu dev ağır sanayi tesislerinde, ILP'nin kombinatoryal patlama ile zaman aşımına girdiği durumlarda saniyeler içinde %98-99 kalitede dengeli ve çalışan memnuniyeti yüksek çizelgeler üretmek için.
+        <b>En İdeal Kullanım Alanı:</b> Yüzlerce personelin ve ayların olduğu dev ağır sanayi tesislerinde, ILP'nin kombinatoryal patlama ile zaman aşımına girdiği durumlarda saniyeler içinde %98-99 kalitede dengeli çizelgeler üretmek için.
         </p>
         </div>
         """, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ==============================================================================
+    # BÖLÜM 1.1: MATEMATİKSEL DEVLERİN KIYASI: SEKME 6 (ILP) vs. SEKME 15 (GOOGLE CP-SAT)
+    # ==============================================================================
+    st.markdown("### ⚖️ Bölüm 1.1: Matematiksel Çözücülerin Kıyası: Sekme 6 (ILP / MILP) vs. Sekme 15 (Google CP-SAT)")
+    st.markdown("""
+    Endüstriyel optimizasyon literatüründe hem **ILP (Mixed Integer Linear Programming)** hem de **Google CP-SAT (Constraint Programming)** matematiksel kesinlik ve kanıtlanmış alt sınır (Best Bound) sunar. Ancak bu iki motorun iç mimarileri, mantıksal kısıtları ele alış biçimleri ve çok çekirdek optimizasyonları kökten farklıdır:
+    """)
+
+    # 4 Temel Ayrım Kartı
+    comp_c1, comp_c2 = st.columns(2)
+    with comp_c1:
+        st.markdown("""
+        <div style="background-color: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #1d4ed8; font-size: 0.95rem; margin-bottom: 6px;">🎯 1. Çözücü Motoru ve Temel Arama Paradigması</div>
+            <p style="font-size: 0.86rem; color: #334155; line-height: 1.5; margin: 0;">
+                <b>Sekme 6 (ILP / PuLP CBC):</b> Sürekli uzayda <b>LP Relaxation (Doğrusal Gevşetme)</b> ve <b>Simplex Algoritması</b> çözer. Tamsayılık için Gomory Kesme Düzlemleri ve standart Dal-Sınır (Branch-and-Bound) ağacı budar.<br><br>
+                <b>Sekme 15 (Google CP-SAT):</b> Saf bir Doğrusal Programlama motoru değildir. <b>Boolean SAT (Sağlanabilirlik)</b> ile <b>Kısıt Yayılımı (Constraint Propagation)</b> motorunu birleştirir. <b>Lazy Clause Generation (LCG)</b> ve <b>CDCL (Çatışma Güdümlü Madde Öğrenimi)</b> ile arama yapar.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="background-color: #f8fafc; border: 1.5px solid #64748b; border-radius: 8px; padding: 14px;">
+            <div style="font-weight: bold; color: #334155; font-size: 0.95rem; margin-bottom: 6px;">🧩 2. Mantıksal ve Ayrık Kısıtların Modellenmesi</div>
+            <p style="font-size: 0.86rem; color: #334155; line-height: 1.5; margin: 0;">
+                <b>Sekme 6 (ILP):</b> Mantıksal kuralları (Örn: <i>"A postası bölünmesin"</i> veya <i>"Akşamdan gündüze ters dönüş olmasın"</i>) doğrudan anlayamaz. Bu kurallar için yapay ikili/sürekli değişkenler ve <b>Big-M (Büyük M Katsayısı)</b> eşitsizlikleri gerektirir. Big-M yöntemi gevşetmeyi zayıflatarak çözümü yavaşlatabilir.<br><br>
+                <b>Sekme 15 (Google CP-SAT):</b> Mantıksal ifadeleri (<code>AddBoolAnd</code>, <code>AddBoolOr</code>, <code>OnlyEnforceIf</code>) doğrudan yerel Boolean önermeleri olarak anlar. Big-M yapay değişkenlerine ihtiyaç duymaz.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with comp_c2:
+        st.markdown("""
+        <div style="background-color: #f0fdf4; border: 1.5px solid #10b981; border-radius: 8px; padding: 14px; margin-bottom: 12px;">
+            <div style="font-weight: bold; color: #047857; font-size: 0.95rem; margin-bottom: 6px;">⚡ 3. Çok Çekirdek (Multi-Threading) & Portföy Paralelliği</div>
+            <p style="font-size: 0.86rem; color: #334155; line-height: 1.5; margin: 0;">
+                <b>Sekme 6 (ILP / CBC):</b> Varsayılan olarak tek iş parçacığında (Single Thread) seri Dal-Sınır ağacı yürütür.<br><br>
+                <b>Sekme 15 (Google CP-SAT):</b> <b>8-16 CPU Çekirdeğini</b> aynı anda farklı stratejilerle (bir çekirdek LNS - Büyük Komşuluk Araması, biri rastgele arama, biri LP gevşetmesi, biri çatışma öğrenimi) eşzamanlı bir portföy yarışı olarak koşturur. Çekirdekler buldukları iyi maddeleri anlık birbirine aktarır.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+        st.markdown("""
+        <div style="background-color: #fff7ed; border: 1.5px solid #f97316; border-radius: 8px; padding: 14px;">
+            <div style="font-weight: bold; color: #c2410c; font-size: 0.95rem; margin-bottom: 6px;">📈 4. Büyük Ölçekli Tesislerde Performans Farkı</div>
+            <p style="font-size: 0.86rem; color: #334155; line-height: 1.5; margin: 0;">
+                <b>Sekme 6 (ILP):</b> Personel sayısı (<i>N</i> &gt; 35) veya gün sayısı (<i>D</i> &gt; 14) olduğunda karar değişkeni sayısı on binleri bulur ve Simplex matrisi şişerek süre sınırında (timeout) takılabilir.<br><br>
+                <b>Sekme 15 (Google CP-SAT):</b> <b>LNS (Büyük Komşuluk Araması)</b> sayesinde devasa kısıt problemlerinde saniyeler içinde mükemmel çözümlere ulaşır ve karmaşık kısıt kombinasyonlarında günümüzün altın standardıdır.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # Detaylı Karşılaştırma Matrisi Tablosu
+    st.markdown("##### 📊 Sekme 6 (ILP / PuLP CBC) vs. Sekme 15 (Google CP-SAT) Karşılaştırma Matrisi")
+    df_ilp_vs_cpsat = pd.DataFrame({
+        "Özellik / Karşılaştırma Kriteri": [
+            "Temel Matematiksel Paradigma",
+            "Kullanılan Çözücü Motoru",
+            "Mantıksal Kısıt Temsili (AND / OR / IF)",
+            "Çok Çekirdek (Multi-Threading) Desteği",
+            "Arama İçi Öğrenme (Learning Capability)",
+            "Teorik Alt Sınır (Best Bound / Gap)",
+            "Küresel Optimum Kanıtlama Hızı",
+            "Büyük Kısıtlı NSP Problemlerinde Güç"
+        ],
+        "🎯 Sekme 6: ILP / MILP (PuLP CBC)": [
+            "Karışık Tamsayılı Doğrusal Programlama (MILP)",
+            "COIN-OR CBC (Coin-or branch and cut)",
+            "Big-M Yöntemi ve Yapay Sürekli Değişkenler",
+            "Tek Çekirdekli (Seri Dal-Sınır Ağacı)",
+            "Gomory Kesme Düzlemleri (Cuts)",
+            "✅ LP Relaxation tabanlı sürekli alt sınır",
+            "Küçük problemlerde hızlı, büyüklerde üstel yavaşlar",
+            "Saf doğrusal maliyetlerde çok iyi, mantıksal kısıtlarda zorlanır"
+        ],
+        "⚡ Sekme 15: Google CP-SAT (OR-Tools)": [
+            "Kısıt Programlama (CP) + Boolean SAT",
+            "Google CP-SAT Engine (Ödüllü SAT Motoru)",
+            "Doğrudan Yerel Boolean Önermeleri (Big-M gerektirmez)",
+            "✅ 8-16 Çekirdekli Çok İş Parçacıklı Portföy Yarışı",
+            "CDCL (Çatışma Güdümlü Madde Öğrenimi)",
+            "✅ LCG tabanlı tam ölçekli alt sınır",
+            "Çok çekirdekli LNS portföyü ile belirgin derecede hızlı",
+            "🏆 Vardiya, rotasyon ve karmaşık kural ağlarında dünya lideri"
+        ]
+    })
+    st.dataframe(df_ilp_vs_cpsat, width="stretch", hide_index=True)
 
     st.divider()
 
@@ -816,6 +921,7 @@ def render_tab_comparison(params):
 
     # Mevcut / Çalıştırılmış Çözücüler Kataloğu
     available_solvers = {}
+    if res15: available_solvers["⚡ Sekme 15: Google CP-SAT (OR-Tools Portfolio)"] = res15
     if res6: available_solvers["🏛️ Sekme 6: ILP (Matematiksel Küresel Optimum)"] = res6
     if res5: available_solvers["🌲 Sekme 5: CSP Backtracking"] = res5
     if res10: available_solvers["🏆 Sekme 10: Memetic Algorithm (MA)"] = res10
