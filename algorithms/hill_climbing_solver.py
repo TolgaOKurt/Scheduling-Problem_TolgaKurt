@@ -116,6 +116,14 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
         current_schedule, workers, n_workers, n_days, shift_reqs
     )
         
+    seed_meta = init_res.get('meta', {})
+    meta = {
+        'accepted_moves': accepted_moves,
+        'seed_source': seed_meta.get('seed_source', 'Greedy'),
+        'is_csp_fallback': seed_meta.get('is_csp_fallback', False),
+        'fallback_reason': seed_meta.get('fallback_reason', '')
+    }
+        
     return build_standard_solver_result(
         schedule=current_schedule,
         workers=workers,
@@ -132,5 +140,5 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
         penalties=current_penalties,
         request_details=request_details,
         score_history=history,
-        meta={'accepted_moves': accepted_moves}
+        meta=meta
     )

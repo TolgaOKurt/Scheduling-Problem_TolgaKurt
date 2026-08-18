@@ -56,7 +56,7 @@ def render_tab5(params):
     st.divider()
 
     st.markdown("### 🎛️ Backtracking / CSP Arama Limiti Kontrolü")
-    max_backtracks = st.number_input("Maksimum Backtrack Limiti", min_value=500, max_value=10000, value=3000, step=500, key="csp_mb")
+    max_backtracks = st.number_input("Maksimum Backtrack Limiti", min_value=500, max_value=25000, value=5000, step=500, key="csp_mb")
 
     num_workers = params['n_workers']
     num_days = params['n_days']

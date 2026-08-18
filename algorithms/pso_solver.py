@@ -27,12 +27,10 @@ from algorithms.worker_manager import generate_worker_profiles
 from algorithms.greedy_solver import get_best_greedy_initial_solution
 from algorithms.penalty_calculator import (
     calculate_full_penalties,
-    check_swap_feasibility,
-    build_worker_request_details,
-    audit_all_hard_constraints
+    check_swap_feasibility
 )
 from algorithms.evolutionary_engine import initialize_population
-from algorithms.solver_contract import build_standard_solver_result
+from algorithms.solver_contract import finalize_solver_execution
 
 
 def _extract_swap_sequence(source_mat: np.ndarray, target_mat: np.ndarray, n_workers: int, n_days: int) -> List[Tuple[int, int, int]]:
@@ -256,21 +254,7 @@ def run_particle_swarm_optimization(
             callback(it, gbest_score, mean_score, f"| Sürü Ort: {mean_score:.0f} | Çeşitlilik σ: {std_score:.1f}")
 
     # Nihai Değerlendirme ve Sert Kısıt Denetimi
-    final_penalties, final_score = calculate_full_penalties(gbest_position, workers, n_workers, n_days, weights)
-    eval_count += 1
-
-    improvement_rate = 0.0
-    if initial_baseline_score > final_score and initial_baseline_score > 0:
-        improvement_rate = round(((initial_baseline_score - final_score) / initial_baseline_score) * 100, 2)
-
-    exec_time_ms = round((time.time() - start_time) * 1000, 1)
     term_reason = f"🐝 Belirlenen {max_iterations} sürü iterasyonu tamamlandı. {swarm_size} parçacığın kolektif bilişsel ve sosyal hafıza etkileşimiyle küresel en iyi çözüm (g_best) elde edildi."
-
-    request_details = build_worker_request_details(gbest_position, workers, n_days, weights)
-    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
-        gbest_position, workers, n_workers, n_days, shift_reqs
-    )
-
     pbest_scores = [p.pbest_score for p in particles]
 
     meta = {
@@ -286,24 +270,24 @@ def run_particle_swarm_optimization(
         'velocity_swaps_count': velocity_swaps_count,
         'turbulence_escapes': turbulence_escapes,
         'accepted_moves': velocity_swaps_count,
-        'total_iterations': max_iterations
+        'total_iterations': max_iterations,
+        'seed_source': greedy_seed.get('meta', {}).get('seed_source', 'Greedy'),
+        'is_csp_fallback': greedy_seed.get('meta', {}).get('is_csp_fallback', False),
+        'fallback_reason': greedy_seed.get('meta', {}).get('fallback_reason', '')
     }
 
-    return build_standard_solver_result(
-        schedule=gbest_position,
+    return finalize_solver_execution(
+        best_schedule=gbest_position,
         workers=workers,
-        is_feasible=is_feasible,
-        hard_violations_count=hard_viols_count,
-        hard_violation_logs=hard_violation_logs,
-        final_score=final_score,
         initial_score=initial_baseline_score,
-        improvement_rate=improvement_rate,
-        exec_time_ms=exec_time_ms,
+        start_time=start_time,
         eval_count=eval_count,
         total_iterations=max_iterations,
+        weights=weights,
+        shift_reqs=shift_reqs,
+        n_workers=n_workers,
+        n_days=n_days,
         termination_reason=term_reason,
-        penalties=final_penalties,
-        request_details=request_details,
         score_history=gbest_score_history,
         meta=meta
     )

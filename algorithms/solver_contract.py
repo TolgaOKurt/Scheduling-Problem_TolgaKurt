@@ -90,3 +90,62 @@ def build_standard_solver_result(
         'score_history': list(score_history),
         'meta': dict(meta)
     }
+
+
+def finalize_solver_execution(
+    best_schedule: np.ndarray,
+    workers: List[Dict[str, Any]],
+    initial_score: int,
+    start_time: float,
+    eval_count: int,
+    total_iterations: int,
+    weights: Dict[str, int],
+    shift_reqs: Dict[int, int],
+    n_workers: int,
+    n_days: int,
+    termination_reason: str = "",
+    score_history: Optional[List[float]] = None,
+    meta: Optional[Dict[str, Any]] = None
+) -> Dict[str, Any]:
+    """
+    Tüm metasezgisel çözücülerin bitişindeki kısıt denetimi, ceza kırılımı,
+    izin talepleri dökümü ve sözleşme paketlemesini tek merkezden yürüten yardımcı fonksiyon.
+    """
+    import time
+    from algorithms.penalty_calculator import (
+        calculate_full_penalties,
+        audit_all_hard_constraints,
+        build_worker_request_details
+    )
+
+    exec_time_ms = round((time.time() - start_time) * 1000, 2)
+    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
+        best_schedule, workers, n_workers, n_days, shift_reqs
+    )
+    penalties_dict, final_total = calculate_full_penalties(
+        best_schedule, workers, n_workers, n_days, weights
+    )
+    request_details = build_worker_request_details(best_schedule, workers, n_days, weights)
+    
+    improvement_rate = 0.0
+    if initial_score > final_total and initial_score > 0:
+        improvement_rate = round(((initial_score - final_total) / initial_score) * 100, 2)
+
+    return build_standard_solver_result(
+        schedule=best_schedule,
+        workers=workers,
+        is_feasible=is_feasible,
+        hard_violations_count=hard_viols_count,
+        hard_violation_logs=hard_violation_logs,
+        final_score=final_total,
+        initial_score=initial_score,
+        improvement_rate=improvement_rate,
+        exec_time_ms=exec_time_ms,
+        eval_count=eval_count,
+        total_iterations=total_iterations,
+        termination_reason=termination_reason,
+        penalties=penalties_dict,
+        request_details=request_details,
+        score_history=score_history,
+        meta=meta
+    )

@@ -21,6 +21,7 @@ from views.tab10_memetic_algorithm import render_tab10
 from views.tab11_tabu_search import render_tab11
 from views.tab12_vns import render_tab12
 from views.tab13_pso import render_tab13
+from views.tab14_aco import render_tab14
 from views.tab_comparison import render_tab_comparison
 
 
@@ -146,11 +147,20 @@ with c4_3:
         st.session_state["active_tab"] = "tab12"
         st.rerun()
 
-# 5. SATIR: SÜRÜ ZEKASI METASEZGİSEL ÇÖZÜCÜSÜ (TEK BAŞINA SATIR)
-btn_type_t13 = "primary" if st.session_state["active_tab"] == "tab13" else "secondary"
-if st.button("🐝 Sekme 13: Particle Swarm Optimization (Discrete PSO - Parçacık Sürü Zekası)", key="btn_t13", width="stretch", type=btn_type_t13):
-    st.session_state["active_tab"] = "tab13"
-    st.rerun()
+# 5. SATIR: SÜRÜ ZEKASI & BİYO-ESİNLENMELİ METASEZGİSELLER (2 KOLON)
+c5_1, c5_2 = st.columns(2)
+
+with c5_1:
+    btn_type_t13 = "primary" if st.session_state["active_tab"] == "tab13" else "secondary"
+    if st.button("🐝 Sekme 13: Discrete PSO", key="btn_t13", width="stretch", type=btn_type_t13):
+        st.session_state["active_tab"] = "tab13"
+        st.rerun()
+
+with c5_2:
+    btn_type_t14 = "primary" if st.session_state["active_tab"] == "tab14" else "secondary"
+    if st.button("🐜 Sekme 14: Ant Colony Optimization (ACO)", key="btn_t14", width="stretch", type=btn_type_t14):
+        st.session_state["active_tab"] = "tab14"
+        st.rerun()
 
 # 6. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
 btn_type_comp = "primary" if st.session_state["active_tab"] == "tab_comparison" else "secondary"
@@ -191,5 +201,7 @@ elif curr == "tab12":
     render_tab12(global_params)
 elif curr == "tab13":
     render_tab13(global_params)
+elif curr == "tab14":
+    render_tab14(global_params)
 elif curr == "tab_comparison":
     render_tab_comparison(global_params)

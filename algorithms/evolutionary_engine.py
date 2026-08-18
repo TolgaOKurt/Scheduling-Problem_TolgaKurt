@@ -51,17 +51,22 @@ def tournament_selection(population, scores, k=3):
     return population[best_idx].copy()
 
 
-def crossover_daywise(parent1, parent2, n_days, crossover_rate=0.85):
+def crossover_daywise(parent1, parent2, n_days, workers=None, n_workers=None, shift_reqs=None, crossover_rate=0.85):
     """
     İki ebeveyn kromozomu gün sütunları bazında rastgele bir kesim noktasından (cut point)
-    birleştirerek çocuk kromozom üretir.
+    birleştirerek geçerli çocuk kromozom üretir.
     """
     if random.random() < crossover_rate:
         cut = random.randint(1, n_days - 1)
         child = np.hstack([parent1[:, :cut], parent2[:, cut:]])
-    else:
-        child = parent1.copy()
-    return child
+        if workers is not None and n_workers is not None and shift_reqs is not None:
+            from algorithms.penalty_calculator import audit_all_hard_constraints
+            is_ok, _, _ = audit_all_hard_constraints(child, workers, n_workers, n_days, shift_reqs)
+            if is_ok:
+                return child
+            return parent1.copy()
+        return child
+    return parent1.copy()
 
 
 def mutate_swap(chromosome, n_workers, n_days, workers, shift_reqs, mutation_rate=0.05):

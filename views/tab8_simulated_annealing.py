@@ -68,7 +68,7 @@ def render_tab8(params):
     with p_col3:
         cooling_rate = st.slider("Soğuma Katsayısı (α)", 0.9800, 0.9999, 0.9900, 0.0005, format="%.4f", key="sa_alpha")
     with p_col4:
-        max_iter = st.slider("Maksimum İterasyon (K)", 2000, 30000, 3000, 1000, key="sa_iter")
+        max_iter = st.slider("Maksimum İterasyon (K)", 2000, 31000, 3000, 1000, key="sa_iter")
 
     num_workers = params['n_workers']
     num_days = params['n_days']
@@ -183,7 +183,8 @@ def render_tab8(params):
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Simulated Annealing (Tavlama Benzetimi)"
+        solver_name="Simulated Annealing (Tavlama Benzetimi)",
+        meta=results.get('meta')
     )
 
     meta = results.get('meta', {})

@@ -363,8 +363,8 @@ def render_tab6(params):
         st.plotly_chart(fig_conv, width="stretch", key="t6_fig_conv")
         
         # İyileşme Analiz Metrikleri (KPI Kutuları)
-        init_score = df_conv.iloc[0]["incumbent"] if df_conv.iloc[0]["incumbent"] is not None else results['objective_value']
-        final_score = results['objective_value']
+        init_score = df_conv.iloc[0]["incumbent"] if (df_conv.iloc[0]["incumbent"] is not None and not pd.isna(df_conv.iloc[0]["incumbent"])) else results.get('initial_score', results['final_score'])
+        final_score = results['final_score']
         score_diff = max(0, init_score - final_score)
         pct_improvement = round((score_diff / max(1, init_score)) * 100, 1) if init_score > 0 else 0
         

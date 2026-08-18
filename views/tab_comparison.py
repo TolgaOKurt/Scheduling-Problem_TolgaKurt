@@ -26,6 +26,7 @@ from algorithms.memetic_algorithm_solver import run_memetic_algorithm
 from algorithms.tabu_search_solver import run_tabu_search
 from algorithms.vns_solver import run_variable_neighborhood_search
 from algorithms.pso_solver import run_particle_swarm_optimization
+from algorithms.aco_solver import run_ant_colony_optimization
 
 def render_tab_comparison(params):
     """Son sekme içeriğini çizer: Tüm Çözücülerin Bütüncül Karşılaştırması ve Benchmark Analizi."""
@@ -50,7 +51,7 @@ def render_tab_comparison(params):
         progress_bar = st.progress(0, text="Benchmark başlatılıyor...")
         
         # 1. Greedy 1: Sıralı / Miyopik
-        progress_bar.progress(8, text="1/12: Greedy (1. Sıralı / Miyopik) çalıştırılıyor...")
+        progress_bar.progress(7, text="1/13: Greedy (1. Sıralı / Miyopik) çalıştırılıyor...")
         res_g1 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)", custom_workers=custom_workers
@@ -58,7 +59,7 @@ def render_tab_comparison(params):
         st.session_state["res_t4_myopic"] = res_g1
 
         # 2. Greedy 2: Kademeli / Desen Tabanlı
-        progress_bar.progress(16, text="2/12: Greedy (2. Kademeli Desen) çalıştırılıyor...")
+        progress_bar.progress(15, text="2/13: Greedy (2. Kademeli Desen) çalıştırılıyor...")
         res_g2 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)", custom_workers=custom_workers
@@ -67,7 +68,7 @@ def render_tab_comparison(params):
         st.session_state["res_t4"] = res_g2
 
         # 3. Greedy 3: Kısıt Öncelikli (MRV / LCV)
-        progress_bar.progress(24, text="3/12: Greedy (3. Kısıt Öncelikli MRV/LCV) çalıştırılıyor...")
+        progress_bar.progress(23, text="3/13: Greedy (3. Kısıt Öncelikli MRV/LCV) çalıştırılıyor...")
         res_g3 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)", custom_workers=custom_workers
@@ -75,14 +76,15 @@ def render_tab_comparison(params):
         st.session_state["res_t4_mrv"] = res_g3
 
         # 4. CSP Backtracking
-        progress_bar.progress(33, text="4/12: CSP Backtracking çalıştırılıyor...")
+        progress_bar.progress(31, text="4/13: CSP Backtracking çalıştırılıyor...")
+        csp_mb = max(st.session_state.get('csp_mb', 3000), 10000)
         csp_solver = CSPBacktrackingSolver(
             n_workers=num_workers,
             n_days=num_days,
             r_day=req_day,
             r_eve=req_eve,
             r_night=req_night,
-            max_backtracks=2000,
+            max_backtracks=csp_mb,
             custom_workers=custom_workers,
             weights=weights
         )
@@ -90,46 +92,51 @@ def render_tab_comparison(params):
         st.session_state["res_t5"] = res_t5
 
         # 5. ILP
-        progress_bar.progress(42, text="5/12: ILP / MILP Optimizasyonu çözülüyor...")
+        progress_bar.progress(38, text="5/13: ILP / MILP Optimizasyonu çözülüyor...")
         res_t6 = solve_ilp_pulp(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=10, custom_workers=custom_workers)
         st.session_state["res_t6"] = res_t6
 
         # 6. Hill Climbing
-        progress_bar.progress(50, text="6/12: Hill Climbing Yerel Araması çalıştırılıyor...")
+        progress_bar.progress(46, text="6/13: Hill Climbing Yerel Araması çalıştırılıyor...")
         res_t7 = run_hill_climbing(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=3000, seed=42, custom_workers=custom_workers)
         st.session_state["res_t7"] = res_t7
 
         # 7. Simulated Annealing
-        progress_bar.progress(58, text="7/12: Simulated Annealing Tavlama çalıştırılıyor...")
+        progress_bar.progress(54, text="7/13: Simulated Annealing Tavlama çalıştırılıyor...")
         res_t8 = run_simulated_annealing(num_workers, num_days, req_day, req_eve, req_night, weights, t_start=1000.0, t_min=0.01, cooling_rate=0.990, max_iterations=3000, seed=42, custom_workers=custom_workers)
         st.session_state["res_t8"] = res_t8
 
         # 8. Genetic Algorithm
-        progress_bar.progress(66, text="8/12: Genetik Algoritma Popülasyonu evrimleştiriliyor...")
+        progress_bar.progress(62, text="8/13: Genetik Algoritma Popülasyonu evrimleştiriliyor...")
         res_t9 = run_genetic_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, pop_size=50, generations=80, crossover_rate=0.85, mutation_rate=0.05, elitism_count=2, seed=42, custom_workers=custom_workers)
         st.session_state["res_t9"] = res_t9
 
         # 9. Memetic Algorithm
-        progress_bar.progress(75, text="9/12: Memetik Algoritma (GA + HC) çözülüyor...")
+        progress_bar.progress(70, text="9/13: Memetik Algoritma (GA + HC) çözülüyor...")
         res_t10 = run_memetic_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, pop_size=40, generations=60, crossover_rate=0.85, mutation_rate=0.05, local_search_depth=5, elitism_count=2, seed=42, custom_workers=custom_workers)
         st.session_state["res_t10"] = res_t10
 
         # 10. Tabu Search
-        progress_bar.progress(83, text="10/12: Tabu Search Hafıza Tabanlı Arama çözülüyor...")
+        progress_bar.progress(78, text="10/13: Tabu Search Hafıza Tabanlı Arama çözülüyor...")
         res_t11 = run_tabu_search(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=750, tabu_tenure=15, neighborhood_size=20, use_aspiration=True, seed=42, custom_workers=custom_workers)
         st.session_state["res_t11"] = res_t11
 
         # 11. Variable Neighborhood Search (VNS)
-        progress_bar.progress(91, text="11/12: Variable Neighborhood Search (VNS) çözülüyor...")
+        progress_bar.progress(85, text="11/13: Variable Neighborhood Search (VNS) çözülüyor...")
         res_t12 = run_variable_neighborhood_search(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=1000, max_neighborhoods=3, local_search_depth=15, seed=42, custom_workers=custom_workers)
         st.session_state["res_t12"] = res_t12
 
         # 12. Particle Swarm Optimization (Discrete PSO)
-        progress_bar.progress(100, text="12/12: Particle Swarm Optimization (Discrete PSO) çözülüyor...")
+        progress_bar.progress(92, text="12/13: Particle Swarm Optimization (Discrete PSO) çözülüyor...")
         res_t13 = run_particle_swarm_optimization(num_workers, num_days, req_day, req_eve, req_night, weights, swarm_size=30, max_iterations=100, w_inertia=0.72, c1_cognitive=1.49, c2_social=1.49, seed=42, custom_workers=custom_workers)
         st.session_state["res_t13"] = res_t13
 
-        st.success("✅ **Benchmark Tamamlandı:** Tüm 12 çözücü (3 Greedy + CSP + ILP + 7 Metasezgisel) aynı parametreler ve kadro üzerinde başarıyla çalıştırıldı!")
+        # 13. Ant Colony Optimization (ACO)
+        progress_bar.progress(100, text="13/13: Ant Colony Optimization (ACO) çözülüyor...")
+        res_t14 = run_ant_colony_optimization(num_workers, num_days, req_day, req_eve, req_night, weights, n_ants=20, max_iterations=60, evaporation_rate=0.15, alpha=1.0, beta=2.0, seed=42, custom_workers=custom_workers)
+        st.session_state["res_t14"] = res_t14
+
+        st.success("✅ **Benchmark Tamamlandı:** Tüm 13 çözücü (3 Greedy + CSP + ILP + 8 Metasezgisel) aynı parametreler ve kadro üzerinde başarıyla çalıştırıldı!")
 
     st.divider()
 
@@ -161,6 +168,7 @@ def render_tab_comparison(params):
     res11 = st.session_state.get('res_t11')
     res12 = st.session_state.get('res_t12')
     res13 = st.session_state.get('res_t13')
+    res14 = st.session_state.get('res_t14')
 
     # --- TEORİK ALT SINIR (THEORETICAL LOWER BOUND / BEST BOUND) ---
     try:
@@ -295,8 +303,8 @@ def render_tab_comparison(params):
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # 3. Satır: 🧬 Metasezgisel Optimizasyon Çözücüleri (Sekme 7 - 13)
-    st.markdown("##### 🧬 3. Metasezgisel Optimizasyon Çözücüleri (Sekme 7, 8, 9, 10, 11, 12, 13)")
+    # 3. Satır: 🧬 Metasezgisel Optimizasyon Çözücüleri (Sekme 7 - 14)
+    st.markdown("##### 🧬 3. Metasezgisel Optimizasyon Çözücüleri (Sekme 7, 8, 9, 10, 11, 12, 13, 14)")
     
     # 1. Metasezgisel Alt Satırı (4 Kolon: HC, SA, GA, MA)
     m1_1, m1_2, m1_3, m1_4 = st.columns(4)
@@ -311,14 +319,16 @@ def render_tab_comparison(params):
 
     st.markdown("<div style='height: 8px;'></div>", unsafe_allow_html=True)
 
-    # 2. Metasezgisel Alt Satırı (3 Kolon: TS, VNS, PSO)
-    m2_1, m2_2, m2_3 = st.columns(3)
+    # 2. Metasezgisel Alt Satırı (4 Kolon: TS, VNS, PSO, ACO)
+    m2_1, m2_2, m2_3, m2_4 = st.columns(4)
     with m2_1:
         render_leaderboard_card("🤫 Sekme 11: Tabu Search", res11, "#f0f9ff", "#0284c7", "#0369a1", is_meta=True)
     with m2_2:
         render_leaderboard_card("🔄 Sekme 12: VNS", res12, "#f0fdfa", "#0d9488", "#0f766e", is_meta=True)
     with m2_3:
         render_leaderboard_card("🐝 Sekme 13: Discrete PSO", res13, "#fefce8", "#ca8a04", "#a16207", is_meta=True)
+    with m2_4:
+        render_leaderboard_card("🐜 Sekme 14: Ant Colony (ACO)", res14, "#fffbeb", "#d97706", "#b45309", is_meta=True)
 
     st.divider()
 
@@ -339,6 +349,7 @@ def render_tab_comparison(params):
         ("Sekme 11: Tabu Search", res11, "Metasezgisel"),
         ("Sekme 12: VNS", res12, "Metasezgisel"),
         ("Sekme 13: Discrete PSO", res13, "Metasezgisel"),
+        ("Sekme 14: Ant Colony (ACO)", res14, "Metasezgisel"),
     ]
     for s_name, s_res, s_type in solvers_catalog:
         if s_res and s_res.get('final_score') is not None:
@@ -685,89 +696,488 @@ def render_tab_comparison(params):
     # ==============================================================================
     # BÖLÜM 3: METASEZGİSEL (METAHEURISTIC) YÖNTEMLERİN KENDİ ARASINDA KARŞILAŞTIRILMASI
     # ==============================================================================
-    st.markdown("### 🧬 Bölüm 3: Metasezgisel (Metaheuristic) Yöntemlerin Kendi Arasında Karşılaştırması (7-Yönlü Derin Matris)")
+    st.markdown("### 🧬 Bölüm 3: Metasezgisel (Metaheuristic) Yöntemlerin Kendi Arasında Karşılaştırması (8-Yönlü Objektif Mühendislik Matrisi)")
     st.markdown("""
-    Metasezgisel yöntemler (Sekme 7, 8, 9, 10, 11, 12, 13); arama uzayındaki **yerel minimum (Local Optimum) çukurlarından kurtulmak** ve küresel en iyiye ulaşmak için farklı zeka mekanizmaları (termodinamik, genetik evrim, insan hafızası, hiyerarşik komşuluk değişimi, parçacık sürü zekası) kullanır.
+    > ⚖️ **No Free Lunch (NFL) Teoremi (Wolpert & Macready, 1997):**  
+    > *"Tüm optimizasyon problemlerinde diğer yöntemlerden mutlak olarak üstün olan tek bir metasezgisel algoritma YOKTUR."*  
+    > Her yöntemin **küresel keşif (Exploration)**, **yerel ince arama (Exploitation)**, **hesaplama hızı** ve **hiperparametre ayar hassasiyeti** arasında farklı mühendislik ödünleşimleri (trade-offs) bulunur.
     """)
 
     comp_html = """
     <div style="overflow-x: auto;">
-    <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:0.83rem; background-color:#ffffff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
+    <table style="width:100%; border-collapse:collapse; margin-top:10px; font-size:0.82rem; background-color:#ffffff; border:1px solid #cbd5e1; border-radius:8px; overflow:hidden;">
         <thead>
             <tr style="background-color:#0f172a; color:#ffffff; text-align:left;">
-                <th style="padding:10px 10px; width:12%;">Karşılaştırma Kriteri</th>
-                <th style="padding:10px 10px; width:12%; color:#fdba74;">🏔️ Sekme 7: HC</th>
-                <th style="padding:10px 10px; width:12%; color:#86efac;">🔥 Sekme 8: SA</th>
-                <th style="padding:10px 10px; width:13%; color:#fca5a5;">🧬 Sekme 9: GA</th>
-                <th style="padding:10px 10px; width:13%; color:#93c5fd;">🏆 Sekme 10: MA</th>
-                <th style="padding:10px 10px; width:12%; color:#7dd3fc;">🤫 Sekme 11: TS</th>
-                <th style="padding:10px 10px; width:13%; color:#2dd4bf;">🔄 Sekme 12: VNS</th>
-                <th style="padding:10px 10px; width:15%; color:#fde047;">🐝 Sekme 13: PSO</th>
+                <th style="padding:10px 8px; width:12%;">Mühendislik Kriteri</th>
+                <th style="padding:10px 8px; width:11%; color:#fdba74;">🏔️ Sekme 7: HC</th>
+                <th style="padding:10px 8px; width:11%; color:#86efac;">🔥 Sekme 8: SA</th>
+                <th style="padding:10px 8px; width:11%; color:#fca5a5;">🧬 Sekme 9: GA</th>
+                <th style="padding:10px 8px; width:11%; color:#93c5fd;">🏆 Sekme 10: MA</th>
+                <th style="padding:10px 8px; width:11%; color:#7dd3fc;">🤫 Sekme 11: TS</th>
+                <th style="padding:10px 8px; width:11%; color:#2dd4bf;">🔄 Sekme 12: VNS</th>
+                <th style="padding:10px 8px; width:11%; color:#fde047;">🐝 Sekme 13: PSO</th>
+                <th style="padding:10px 8px; width:12%; color:#facc15;">🐜 Sekme 14: ACO</th>
             </tr>
         </thead>
         <tbody>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Arama Paradigması</td>
-                <td style="padding:9px 10px;">Tek Noktalı Yöresel</td>
-                <td style="padding:9px 10px;">Stokastik Termodinamik</td>
-                <td style="padding:9px 10px;">Popülasyon Evrimsel</td>
-                <td style="padding:9px 10px; font-weight:bold; color:#1d4ed8;">Hibrit: GA + HC</td>
-                <td style="padding:9px 10px; color:#0369a1; font-weight:bold;">Hafıza Tabanlı</td>
-                <td style="padding:9px 10px; color:#0f766e; font-weight:bold;">Hiyerarşik Çoklu Komşuluk</td>
-                <td style="padding:9px 10px; color:#a16207; font-weight:bold;">Kolektif Sürü Zekası (Bilişsel + Sosyal)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Arama Tipi & Paradigma</td>
+                <td style="padding:8px 8px;">Tek Noktalı Yöresel</td>
+                <td style="padding:8px 8px;">Tek Noktalı Stokastik (Fiziksel Tavlama)</td>
+                <td style="padding:8px 8px;">Popülasyon Tabanlı Evrimsel</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#1d4ed8;">Hibrit (GA Evrim + HC Onarım)</td>
+                <td style="padding:8px 8px; color:#0369a1; font-weight:bold;">Tek Noktalı Deterministik Hafıza</td>
+                <td style="padding:8px 8px; color:#0f766e; font-weight:bold;">Çoklu Komşuluk Değişimi</td>
+                <td style="padding:8px 8px; color:#a16207; font-weight:bold;">Popülasyon Sürü Zekası (Bilişsel+Sosyal)</td>
+                <td style="padding:8px 8px; color:#ca8a04; font-weight:bold;">Popülasyon Feromon Çizge Tabanlı</td>
             </tr>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#f8fafc;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Hafıza Mekanizması</td>
-                <td style="padding:9px 10px; color:#dc2626;">❌ Yok (Hafızasız)</td>
-                <td style="padding:9px 10px; color:#dc2626;">❌ Yok (Sadece T)</td>
-                <td style="padding:9px 10px;">Gen Havuzu</td>
-                <td style="padding:9px 10px;">Gen Havuzu</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">✅ Var (Tabu Listesi)</td>
-                <td style="padding:9px 10px; color:#0d9488;">Komşuluk İndeksi (k)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Çift Hafıza: p_best (Bireysel) + g_best (Sürü)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Temel Güçlü Yönü (Avantaj)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">⚡ Yıldırım hızında (&lt;50 ms), 0 parametre ayarı</td>
+                <td style="padding:8px 8px; color:#0369a1; font-weight:bold;">Metropolis sıçramalarıyla çukurdan kaçış</td>
+                <td style="padding:8px 8px; color:#2563eb; font-weight:bold;">Geniş uzayı paralel tarama (Exploration)</td>
+                <td style="padding:8px 8px; color:#1d4ed8; font-weight:bold;">🎯 En yüksek ortalama çözüm kalitesi</td>
+                <td style="padding:8px 8px; color:#059669; font-weight:bold;">Tabu listesiyle döngüye girmeyen arama</td>
+                <td style="padding:8px 8px; color:#0f766e; font-weight:bold;">N1, N2, N3 ile üstün posta takası</td>
+                <td style="padding:8px 8px; color:#a16207; font-weight:bold;">Ortak hafıza (p_best + g_best) ile hızlı yönelim</td>
+                <td style="padding:8px 8px; color:#ca8a04; font-weight:bold;">Feromon takviyesi ile kolektif çizelge inşası</td>
             </tr>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Çevrim Engelleme</td>
-                <td style="padding:9px 10px; color:#dc2626;">Zayıf (Döngüye girer)</td>
-                <td style="padding:9px 10px;">Kısmi (T sıçraması)</td>
-                <td style="padding:9px 10px;">İyi (Mutasyon)</td>
-                <td style="padding:9px 10px; color:#15803d;">Çok İyi (Çeşitlilik)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Mükemmel (Tabu Tenure)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Çok Başarılı (Shaking)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Yüksek (Durgunluk Türbülansı)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Temel Zayıf Yönü (Risk / Dezavantaj)</td>
+                <td style="padding:8px 8px; color:#b91c1c; font-weight:bold;">⚠️ İlk yerel çukurda kesin kilitlenir</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ Soğuma hızına (&alpha;) aşırı duyarlıdır</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ İnce ayarda yavaş; dikiş hatası riski</td>
+                <td style="padding:8px 8px; color:#b91c1c; font-weight:bold;">⏱️ En yüksek CPU maliyeti (~3-12 sn)</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ Tenure yanlışsa çözümleri hapseder</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ Probleme özel Nk tasarımı zorunludur</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ Çeşitlilik biterse erken yakınsama riski</td>
+                <td style="padding:8px 8px; color:#b91c1c;">⚠️ Buharlaşma katsayısı yanlışsa erken kilitlenme</td>
             </tr>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#f8fafc;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Yerel Tuzaktan Kaçış</td>
-                <td style="padding:9px 10px; color:#c2410c;">Zayıf (Tepede durur)</td>
-                <td style="padding:9px 10px; color:#15803d;">İyi (Metropolis)</td>
-                <td style="padding:9px 10px; color:#1d4ed8;">Çok Üstün (Çaprazlama)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Mükemmel (Global+Lokal)</td>
-                <td style="padding:9px 10px; color:#0369a1; font-weight:bold;">Çok Güçlü (Aspirasyon)</td>
-                <td style="padding:9px 10px; color:#0f766e; font-weight:bold;">🏆 Mükemmel (N2 ve N3)</td>
-                <td style="padding:9px 10px; color:#a16207; font-weight:bold;">🏆 Çok Güçlü (Atalet w & Sosyal Çekim)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Hiperparametre Hassasiyeti</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">🟢 Çok Kolay (0 Parametre)</td>
+                <td style="padding:8px 8px; color:#d97706;">🟡 Orta (T_start, &alpha;)</td>
+                <td style="padding:8px 8px; color:#dc2626; font-weight:bold;">🔴 Yüksek (Pop, Cross, Mut)</td>
+                <td style="padding:8px 8px; color:#dc2626; font-weight:bold;">🔴 Çok Yüksek (GA + HC)</td>
+                <td style="padding:8px 8px; color:#d97706;">🟡 Orta / Yüksek (Tenure)</td>
+                <td style="padding:8px 8px; color:#d97706;">🟡 Orta (k_max, Shaking)</td>
+                <td style="padding:8px 8px; color:#d97706;">🟡 Orta / Yüksek (w, c1, c2)</td>
+                <td style="padding:8px 8px; color:#d97706;">🟡 Orta / Yüksek (m, &rho;, &alpha;, &beta;)</td>
             </tr>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Posta Bütünlüğü</td>
-                <td style="padding:9px 10px;">Yavaş (Mikro takas)</td>
-                <td style="padding:9px 10px;">Rastgele</td>
-                <td style="padding:9px 10px; color:#dc2626;">Dikiş hatası riski</td>
-                <td style="padding:9px 10px; color:#059669;">İyi (Lokal arama onarır)</td>
-                <td style="padding:9px 10px;">Hızlı (Hafıza yönlü)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🏆 Üstün (N3 takım takası)</td>
-                <td style="padding:9px 10px; color:#a16207; font-weight:bold;">Hızlı (Hız operatörü ile hizalama)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Arama Uzayı Keşfi (Exploration)</td>
+                <td style="padding:8px 8px; color:#64748b;">Düşük (Lokal komşuluk)</td>
+                <td style="padding:8px 8px; color:#0284c7;">Orta / Yüksek (Sıcakken)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Yüksek (Popülasyon)</td>
+                <td style="padding:8px 8px; color:#15803d;">Yüksek (Popülasyon)</td>
+                <td style="padding:8px 8px; color:#0284c7;">Orta (Tabu itişiyle)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Yüksek (Shaking sıçraması)</td>
+                <td style="padding:8px 8px; color:#15803d;">Yüksek (Hız vektörleri)</td>
+                <td style="padding:8px 8px; color:#15803d;">Yüksek (Buharlaşma ve çoklu karınca)</td>
             </tr>
             <tr style="border-bottom:1px solid #e2e8f0; background-color:#f8fafc;">
-                <td style="padding:9px 10px; font-weight:bold; color:#334155;">Hesaplama Hızı</td>
-                <td style="padding:9px 10px; color:#15803d; font-weight:bold;">⚡ Yıldırım (~50-500 ms)</td>
-                <td style="padding:9px 10px; color:#0284c7; font-weight:bold;">🚀 Hızlı (~200-2,000 ms)</td>
-                <td style="padding:9px 10px; color:#d97706;">⏱️ Orta (~2-8 sn)</td>
-                <td style="padding:9px 10px; color:#2563eb;">⏱️ Dengeli (~3-12 sn)</td>
-                <td style="padding:9px 10px; color:#059669; font-weight:bold;">🚀 Çok Hızlı (~300-3,000 ms)</td>
-                <td style="padding:9px 10px; color:#0f766e; font-weight:bold;">⚡ Yıldırım (~200-1,500 ms)</td>
-                <td style="padding:9px 10px; color:#a16207; font-weight:bold;">🚀 Çok Hızlı (~300-2,500 ms)</td>
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Yerel İnce Arama (Exploitation)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Hızlı (Lokal gradyan)</td>
+                <td style="padding:8px 8px; color:#64748b;">Yavaş (Stokastik)</td>
+                <td style="padding:8px 8px; color:#64748b;">Düşük (Tek başına yetersiz)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Üstün (Özel HC ile)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Güçlü (En iyi komşu)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Güçlü (N1 mikro takas)</td>
+                <td style="padding:8px 8px; color:#15803d;">Hızlı / Güçlü (Çekim)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">Çok Güçlü (MMAS + Daemon Action)</td>
+            </tr>
+            <tr style="border-bottom:1px solid #e2e8f0; background-color:#ffffff;">
+                <td style="padding:8px 8px; font-weight:bold; color:#334155;">Hesaplama Hızı & CPU Yükü</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">⚡ Yıldırım (~50 - 300 ms)</td>
+                <td style="padding:8px 8px; color:#0284c7; font-weight:bold;">🚀 Hızlı (~200 - 1,500 ms)</td>
+                <td style="padding:8px 8px; color:#d97706;">⏱️ Orta (~2 - 6 sn)</td>
+                <td style="padding:8px 8px; color:#b91c1c; font-weight:bold;">⏱️ Yoğun (~3 - 12 sn)</td>
+                <td style="padding:8px 8px; color:#0284c7; font-weight:bold;">🚀 Hızlı (~300 - 2,500 ms)</td>
+                <td style="padding:8px 8px; color:#15803d; font-weight:bold;">⚡ Çok Hızlı (~200 - 1,500 ms)</td>
+                <td style="padding:8px 8px; color:#0284c7; font-weight:bold;">🚀 Hızlı (~300 - 2,500 ms)</td>
+                <td style="padding:8px 8px; color:#0284c7; font-weight:bold;">🚀 Hızlı (~300 - 2,500 ms)</td>
             </tr>
         </tbody>
     </table>
     </div>
     """
     st.markdown(comp_html, unsafe_allow_html=True)
+
+    st.divider()
+
+    # ==============================================================================
+    # BÖLÜM 4: ÇÖZÜCÜ KARŞILAŞTIRMALI VARDİYA & İZİN MUTABAKATI (CONSENSUS & ALIGNMENT)
+    # ==============================================================================
+    st.markdown("### 🔬 Bölüm 4: Çözücü Karşılaştırmalı Vardiya & İzin Mutabakatı (Schedule Alignment & Consensus Matrix)")
+    st.markdown("""
+    Bu modülde, **Matematiksel Kesin Çözücü (ILP)** ile **Metasezgisel Yöntemlerin (GA, MA, TS, VNS, PSO, SA, HC)** ve **Sezgisel Çözücülerin** ürettiği nihai vardiya matrisleri üst üste bindirilir.
+    Algoritmaların hangi personel ve günlerde **tam mutabakata vardığı** (birebir aynı vardiyayı atadığı), hangi noktalarda **ayrıştığı** (izin vs çalışma çatışması veya vardiya tipi farkı) görsel ısı haritası ve analitik metriklerle ortaya konur.
+    """)
+
+    # Mevcut / Çalıştırılmış Çözücüler Kataloğu
+    available_solvers = {}
+    if res6: available_solvers["🏛️ Sekme 6: ILP (Matematiksel Küresel Optimum)"] = res6
+    if res5: available_solvers["🌲 Sekme 5: CSP Backtracking"] = res5
+    if res10: available_solvers["🏆 Sekme 10: Memetic Algorithm (MA)"] = res10
+    if res9: available_solvers["🧬 Sekme 9: Genetic Algorithm (GA)"] = res9
+    if res14: available_solvers["🐜 Sekme 14: Ant Colony Optimization (ACO)"] = res14
+    if res13: available_solvers["🐝 Sekme 13: Discrete PSO"] = res13
+    if res12: available_solvers["🔄 Sekme 12: Variable Neighborhood Search (VNS)"] = res12
+    if res11: available_solvers["🤫 Sekme 11: Tabu Search (TS)"] = res11
+    if res8: available_solvers["🔥 Sekme 8: Simulated Annealing (SA)"] = res8
+    if res7: available_solvers["🏔️ Sekme 7: Hill Climbing (HC)"] = res7
+    if res_g3: available_solvers["⚡ Sekme 4: Kısıt Öncelikli Sezgisel (MRV/LCV)"] = res_g3
+    if res_g2: available_solvers["⚡ Sekme 4: Kademeli Sezgisel (Staggered)"] = res_g2
+    if res_g1: available_solvers["⚡ Sekme 4: Sıralı Miyopik Sezgisel (Sequential)"] = res_g1
+
+    if len(available_solvers) < 2:
+        st.warning("⚠️ Karşılaştırma yapabilmek için en az 2 farklı çözücünün çalıştırılmış olması gerekir. Yukarıdaki **'⚡ Tüm Çözücüleri Çalıştır (Benchmark)'** butonuna basarak tüm sonuçları tek tıkla üretebilirsiniz.")
+    else:
+        solver_names = list(available_solvers.keys())
+        default_idx_A = 0
+        default_idx_B = min(1, len(solver_names) - 1)
+        for i, name in enumerate(solver_names):
+            if "GA" in name or "Memetic" in name or "PSO" in name:
+                default_idx_B = i
+                break
+
+        c_sel1, c_sel2 = st.columns(2)
+        with c_sel1:
+            name_A = st.selectbox(
+                "📌 Referans Çözücü A (Baz Alınan Çözüm):",
+                options=solver_names,
+                index=default_idx_A,
+                key="cmp_sel_a"
+            )
+        with c_sel2:
+            name_B = st.selectbox(
+                "🔄 Karşılaştırılan Çözücü B:",
+                options=solver_names,
+                index=default_idx_B,
+                key="cmp_sel_b"
+            )
+
+        sol_A = available_solvers[name_A]
+        sol_B = available_solvers[name_B]
+        sched_A = sol_A['schedule']
+        sched_B = sol_B['schedule']
+
+        s_map = {0: "OFF", 1: "Gündüz", 2: "Akşam", 3: "Gece"}
+        shift_full_names = {0: "İzin (OFF)", 1: "Gündüz (08-16)", 2: "Akşam (16-24)", 3: "Gece (24-08)"}
+        total_slots = num_workers * num_days
+
+        # 1. Metrik Hesaplamaları
+        exact_matches = int((sched_A == sched_B).sum())
+        exact_pct = round((exact_matches / total_slots) * 100.0, 1)
+
+        # İzin (OFF) uyumu
+        off_A = (sched_A == 0)
+        off_B = (sched_B == 0)
+        off_both = int((off_A & off_B).sum())
+        off_either = int((off_A | off_B).sum())
+        off_agree_state = int((off_A == off_B).sum())
+        off_agree_pct = round((off_agree_state / total_slots) * 100.0, 1)
+
+        # Gece Nöbeti uyumu
+        night_A = (sched_A == 3)
+        night_B = (sched_B == 3)
+        night_both = int((night_A & night_B).sum())
+        night_either = int((night_A | night_B).sum())
+        night_match_pct = round((night_both / max(1, night_either)) * 100.0, 1) if night_either > 0 else 100.0
+
+        # Skor ve İyileştirme Farkı
+        score_A = sol_A['final_score']
+        score_B = sol_B['final_score']
+        score_diff = abs(score_A - score_B)
+
+        # KPI KARTLARI
+        kpi1, kpi2, kpi3, kpi4 = st.columns(4)
+        with kpi1:
+            st.markdown(f"""
+            <div class="metric-card" style="border-left: 4px solid #10b981;">
+                <div class="metric-label">🎯 Tam Vardiya Mutabakatı</div>
+                <div class="metric-value" style="color: #059669;">%{exact_pct}</div>
+                <div style="font-size:0.80rem; color:#64748b; margin-top:2px;">{exact_matches} / {total_slots} Hücre Birebir Aynı</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with kpi2:
+            st.markdown(f"""
+            <div class="metric-card" style="border-left: 4px solid #3b82f6;">
+                <div class="metric-label">🏖️ İzin (OFF) Kararı Uyumu</div>
+                <div class="metric-value" style="color: #2563eb;">%{off_agree_pct}</div>
+                <div style="font-size:0.80rem; color:#64748b; margin-top:2px;">{off_both} Ortak İzin Günü</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with kpi3:
+            st.markdown(f"""
+            <div class="metric-card" style="border-left: 4px solid #8b5cf6;">
+                <div class="metric-label">🌙 Gece Vardiyası Mutabakatı</div>
+                <div class="metric-value" style="color: #7c3aed;">%{night_match_pct}</div>
+                <div style="font-size:0.80rem; color:#64748b; margin-top:2px;">{night_both} Ortak Gece Nöbeti</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with kpi4:
+            st.markdown(f"""
+            <div class="metric-card" style="border-left: 4px solid #f59e0b;">
+                <div class="metric-label">⚖️ Skor Farkı (|ΔZ|)</div>
+                <div class="metric-value" style="color: #d97706;">{score_diff} Puan</div>
+                <div style="font-size:0.80rem; color:#64748b; margin-top:2px;">A: {score_A} | B: {score_B}</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        # 2. Mutabakat Isı Haritası (Overlay Consensus Heatmap)
+        st.markdown("##### 🗺️ Karşılaştırmalı Vardiya & İzin Mutabakat Haritası (Overlay Matrix)")
+        st.markdown("""
+        - 🟩 **Yeşil (Tam Mutabakat):** İki yöntem de aynı personele aynı gün **aynı vardiyayı** atamıştır.
+        - 🟨 **Sarı (Vardiya Tipi Farkı):** İki yöntem de personeli çalıştırmış, ancak biri *Gündüz/Akşam/Gece* farklılığı seçmiştir.
+        - 🟥 **Kırmızı (İzin Çatışması):** Bir yöntem personele *İzin (OFF)* verirken, diğeri *Çalışma* yazmıştır.
+        """)
+
+        # Matris Hazırlığı
+        diff_matrix = np.zeros((num_workers, num_days), dtype=int)
+        text_matrix = []
+        hover_matrix = []
+
+        day_cols = [f"{d+1}. Gün" for d in range(num_days)]
+        worker_rows = [f"{w['name']} ({w['posta']})" for w in workers]
+
+        for w_idx, w in enumerate(workers):
+            t_row = []
+            h_row = []
+            for d in range(num_days):
+                v_A = sched_A[w_idx, d]
+                v_B = sched_B[w_idx, d]
+                s_A_txt = s_map[v_A]
+                s_B_txt = s_map[v_B]
+                pref_txt = f" (Talep Edilen İzin: {w.get('pref_off', '-')}. Gün)" if w.get('pref_off', 0) == (d+1) else ""
+
+                if v_A == v_B:
+                    diff_matrix[w_idx, d] = 0
+                    t_row.append(f"✅ {s_A_txt}")
+                    h_row.append(f"<b>{w['name']}</b> ({w['posta']})<br><b>Gün:</b> {d+1}. Gün{pref_txt}<br><b>Karar:</b> Birebir Aynı: <b>{shift_full_names[v_A]}</b><br><b>Durum:</b> 🟢 Tam Mutabakat")
+                elif v_A != 0 and v_B != 0:
+                    diff_matrix[w_idx, d] = 1
+                    t_row.append(f"⚡ {s_A_txt}/{s_B_txt}")
+                    h_row.append(f"<b>{w['name']}</b> ({w['posta']})<br><b>Gün:</b> {d+1}. Gün{pref_txt}<br><b>{name_A.split(':')[0]}:</b> {shift_full_names[v_A]}<br><b>{name_B.split(':')[0]}:</b> {shift_full_names[v_B]}<br><b>Durum:</b> 🟡 Vardiya Tipi Farkı")
+                else:
+                    diff_matrix[w_idx, d] = 2
+                    t_row.append(f"⚠️ {s_A_txt}/{s_B_txt}")
+                    h_row.append(f"<b>{w['name']}</b> ({w['posta']})<br><b>Gün:</b> {d+1}. Gün{pref_txt}<br><b>{name_A.split(':')[0]}:</b> {shift_full_names[v_A]}<br><b>{name_B.split(':')[0]}:</b> {shift_full_names[v_B]}<br><b>Durum:</b> 🔴 İzin vs Çalışma Çatışması")
+            text_matrix.append(t_row)
+            hover_matrix.append(h_row)
+
+        colorscale_comp = [
+            [0.0, '#10b981'], [0.33, '#10b981'],   # Yeşil: Tam Mutabakat
+            [0.34, '#f59e0b'], [0.66, '#f59e0b'],  # Sarı: Vardiya Tipi Farkı
+            [0.67, '#ef4444'], [1.0, '#ef4444']    # Kırmızı: İzin Çatışması
+        ]
+
+        fig_overlay = go.Figure(data=go.Heatmap(
+            z=diff_matrix,
+            x=day_cols,
+            y=worker_rows,
+            text=text_matrix,
+            texttemplate="%{text}",
+            textfont={"size": 11, "color": "white", "family": "Inter, sans-serif"},
+            hovertext=hover_matrix,
+            hoverinfo="text",
+            colorscale=colorscale_comp,
+            zmin=0,
+            zmax=2,
+            showscale=False
+        ))
+
+        fig_overlay.update_layout(
+            height=max(480, num_workers * 26 + 120),
+            margin=dict(l=10, r=10, t=25, b=10),
+            xaxis=dict(tickangle=0, side='top', showgrid=False),
+            yaxis=dict(autorange='reversed', showgrid=False)
+        )
+        st.plotly_chart(fig_overlay, width="stretch", key="bench_fig_overlay")
+
+        # 3. Ayrışma Detayları & Yan Yana İnceleme Sekmeleri
+        st.markdown("<br>", unsafe_allow_html=True)
+        tab_discrepancy, tab_side_by_side, tab_ensemble = st.tabs([
+            "📋 Ayrışan Vardiyalar ve İzin Farkları Detay Tablosu",
+            "📊 Yan Yana Çizelge Matrisleri (Side-by-Side)",
+            "🌐 Çoklu Çözücü Konsensüs Analizi (Ensemble Consensus)"
+        ])
+
+        with tab_discrepancy:
+            discrepancy_rows = []
+            for w_idx, w in enumerate(workers):
+                for d in range(num_days):
+                    v_A = sched_A[w_idx, d]
+                    v_B = sched_B[w_idx, d]
+                    if v_A != v_B:
+                        is_pref = "🎯 EVET (Talep Edilen Gün)" if (w.get('pref_off', 0) == (d + 1)) else "Hayır"
+                        diff_type = "🟡 Vardiya Tipi Farkı" if (v_A != 0 and v_B != 0) else "🔴 İzin vs Çalışma Çatışması"
+                        discrepancy_rows.append({
+                            "Personel": w['name'],
+                            "Posta": w['posta'],
+                            "Unvan": "Kıdemli Usta" if w['is_usta'] else "İşçi",
+                            "Gün": f"{d+1}. Gün",
+                            f"{name_A.split(':')[0]} Kararı": shift_full_names[v_A],
+                            f"{name_B.split(':')[0]} Kararı": shift_full_names[v_B],
+                            "Ayrışma Türü": diff_type,
+                            "Kişisel İzin Günü mü?": is_pref
+                        })
+
+            if discrepancy_rows:
+                df_disc = pd.DataFrame(discrepancy_rows)
+                st.markdown(f"Toplam **{len(discrepancy_rows)}** hücrede iki yöntem farklı karar vermiştir:")
+                st.dataframe(df_disc, width="stretch", hide_index=True)
+            else:
+                st.success("🎉 **Kusursuz Birebir Eşleşme:** İki çözücü de tüm personel ve günler için %100 birebir aynı çizelgeyi üretmiştir!")
+
+        with tab_side_by_side:
+            st.markdown("""
+            <div style="display:flex; align-items:center; gap:14px; margin-bottom:12px; font-size:0.85rem; font-weight:600; background-color:#f8fafc; padding:8px 14px; border-radius:8px; border:1px solid #e2e8f0;">
+                <span style="color:#475569;">🎨 Vardiya Renk Kodları:</span>
+                <span style="background-color:#cbd5e1; color:#0f172a; padding:3px 10px; border-radius:4px; border:1px solid #94a3b8;">⬜ OFF (İzin)</span>
+                <span style="background-color:#fde047; color:#713f12; padding:3px 10px; border-radius:4px; border:1px solid #eab308;">🟨 Gündüz (08-16)</span>
+                <span style="background-color:#f97316; color:#ffffff; padding:3px 10px; border-radius:4px;">🟧 Akşam (16-24)</span>
+                <span style="background-color:#1e3a8a; color:#ffffff; padding:3px 10px; border-radius:4px;">🟦 Gece (24-08)</span>
+            </div>
+            """, unsafe_allow_html=True)
+
+            def create_schedule_color_heatmap(sched, w_list, name_title, score_val):
+                short_labels = {0: "OFF", 1: "Gün", 2: "Akş", 3: "Gec"}
+                text_grid = [[short_labels[sched[w_i, d_i]] for d_i in range(num_days)] for w_i in range(num_workers)]
+                hover_grid = []
+                for w_i, w in enumerate(w_list):
+                    h_row = []
+                    for d_i in range(num_days):
+                        v = sched[w_i, d_i]
+                        h_row.append(
+                            f"<b>{w['name']}</b> ({w['posta']})<br>"
+                            f"<b>Gün:</b> {d_i+1}. Gün<br>"
+                            f"<b>Vardiya:</b> {shift_full_names[v]}<br>"
+                            f"<b>Kıdem:</b> {'Kıdemli Usta' if w['is_usta'] else 'İşçi'}"
+                        )
+                    hover_grid.append(h_row)
+
+                colorscale_shifts = [
+                    [0.0, '#cbd5e1'], [0.25, '#cbd5e1'],
+                    [0.26, '#fde047'], [0.50, '#fde047'],
+                    [0.51, '#f97316'], [0.75, '#f97316'],
+                    [0.76, '#1e3a8a'], [1.0, '#1e3a8a']
+                ]
+
+                fig = go.Figure(data=go.Heatmap(
+                    z=sched,
+                    x=day_cols,
+                    y=worker_rows,
+                    text=text_grid,
+                    texttemplate="%{text}",
+                    textfont=dict(size=10, family="Inter, sans-serif"),
+                    hovertext=hover_grid,
+                    hoverinfo="text",
+                    colorscale=colorscale_shifts,
+                    zmin=0,
+                    zmax=3,
+                    showscale=False
+                ))
+
+                fig.update_layout(
+                    title=dict(text=f"<b>{name_title}</b> (Skor: {score_val} Puan)", font=dict(size=12, color="#1e293b")),
+                    height=max(480, num_workers * 25 + 100),
+                    margin=dict(l=10, r=10, t=35, b=10),
+                    xaxis=dict(tickangle=0, side='top', showgrid=False),
+                    yaxis=dict(autorange='reversed', showgrid=False)
+                )
+                return fig
+
+            s_col1, s_col2 = st.columns(2)
+            with s_col1:
+                fig_A = create_schedule_color_heatmap(sched_A, workers, name_A, sol_A['final_score'])
+                st.plotly_chart(fig_A, width="stretch", key="bench_fig_side_a")
+
+            with s_col2:
+                fig_B = create_schedule_color_heatmap(sched_B, workers, name_B, sol_B['final_score'])
+                st.plotly_chart(fig_B, width="stretch", key="bench_fig_side_b")
+
+            with st.expander("📄 Ham Metin Tablolarını Görüntüle (Kopyalama & Dışa Aktarma İçin)", expanded=False):
+                c_tbl1, c_tbl2 = st.columns(2)
+                with c_tbl1:
+                    st.markdown(f"**{name_A}**")
+                    df_A = pd.DataFrame(sched_A, columns=day_cols, index=[w['name'] for w in workers]).replace(shift_full_names)
+                    df_A.reset_index(names=["Personel"], inplace=True)
+                    st.dataframe(df_A, width="stretch", hide_index=True)
+                with c_tbl2:
+                    st.markdown(f"**{name_B}**")
+                    df_B = pd.DataFrame(sched_B, columns=day_cols, index=[w['name'] for w in workers]).replace(shift_full_names)
+                    df_B.reset_index(names=["Personel"], inplace=True)
+                    st.dataframe(df_B, width="stretch", hide_index=True)
+
+        with tab_ensemble:
+            st.markdown("##### 🌐 Tüm Çalıştırılmış Çözücülerin Konsensüs (Ortak Akıl) Analizi")
+            st.markdown("""
+            Bu analiz; sistemde çalıştırılmış olan tüm çözücülerin (<i>K</i> adet) her bir hücre (<i>w, d</i>) için **çoğunluk oyu konsensüs oranını (%)** hesaplar.
+            Konsensüs oranı %100 olan hücreler, problemin matematiksel yapısı gereği tüm sezgisel ve matematiksel modellerin **kesin olarak aynı vardiyaya mecbur kaldığı kilit düğümleri** gösterir.
+            """)
+
+            ran_schedules = [sol['schedule'] for sol in available_solvers.values() if sol and 'schedule' in sol]
+            if len(ran_schedules) >= 3:
+                stacked = np.stack(ran_schedules, axis=0) # (K, N, D)
+                k_solvers = stacked.shape[0]
+
+                consensus_matrix = np.zeros((num_workers, num_days), dtype=float)
+                consensus_text = []
+                consensus_hover = []
+
+                for w_idx, w in enumerate(workers):
+                    c_row_txt = []
+                    c_row_hov = []
+                    for d in range(num_days):
+                        cell_vals = stacked[:, w_idx, d]
+                        counts = np.bincount(cell_vals, minlength=4)
+                        majority_shift = int(np.argmax(counts))
+                        maj_count = int(counts[majority_shift])
+                        agreement_ratio = round((maj_count / k_solvers) * 100.0, 1)
+                        consensus_matrix[w_idx, d] = agreement_ratio
+
+                        c_row_txt.append(f"%{int(agreement_ratio)}")
+                        c_row_hov.append(f"<b>{w['name']}</b> ({w['posta']})<br><b>Gün:</b> {d+1}. Gün<br><b>Çoğunluk Kararı:</b> {shift_full_names[majority_shift]} ({maj_count}/{k_solvers} Çözücü)<br><b>Konsensüs Oranı:</b> %{agreement_ratio}")
+                    consensus_text.append(c_row_txt)
+                    consensus_hover.append(c_row_hov)
+
+                mean_consensus = round(float(np.mean(consensus_matrix)), 1)
+                full_consensus_slots = int((consensus_matrix == 100.0).sum())
+
+                ec1, ec2, ec3 = st.columns(3)
+                with ec1:
+                    st.metric("Çalıştırılan Çözücü Sayısı", f"{k_solvers} Çözücü")
+                with ec2:
+                    st.metric("Ortalama Sürü Konsensüsü", f"%{mean_consensus}")
+                with ec3:
+                    st.metric("Tam Mutabakat Hücreleri (%100)", f"{full_consensus_slots} / {total_slots} Hücre")
+
+                fig_ens = go.Figure(data=go.Heatmap(
+                    z=consensus_matrix,
+                    x=day_cols,
+                    y=worker_rows,
+                    text=consensus_text,
+                    texttemplate="%{text}",
+                    textfont={"size": 11, "color": "white"},
+                    hovertext=consensus_hover,
+                    hoverinfo="text",
+                    colorscale="Blues",
+                    zmin=25,
+                    zmax=100,
+                    colorbar=dict(title="Konsensüs %")
+                ))
+                fig_ens.update_layout(
+                    height=max(450, num_workers * 24 + 100),
+                    margin=dict(l=10, r=10, t=25, b=10),
+                    xaxis=dict(tickangle=0, side='top', showgrid=False),
+                    yaxis=dict(autorange='reversed', showgrid=False)
+                )
+                st.plotly_chart(fig_ens, width="stretch", key="bench_fig_ensemble")
+            else:
+                st.info(f"ℹ️ Çoklu konsensüs analizi için en az 3 çözücünün çalıştırılmış olması gerekir (Şu an çalışan: {len(ran_schedules)}). Yukarıdaki '⚡ Tüm Çözücüleri Çalıştır (Benchmark)' butonuna basarak tüm çözücüleri anında devreye alabilirsiniz.")

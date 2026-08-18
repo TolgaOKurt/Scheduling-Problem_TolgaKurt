@@ -274,24 +274,85 @@ def render_worker_profiles_table(workers, title="🪪 Aktif Personel Yetkinlik v
 
 
 # 10. SERT KISIT UYGUNLUK VE İHLAL BİLDİRİM KARTI
-def render_hard_constraints_status_card(is_feasible, hard_violations_count=0, hard_violation_logs=None, solver_name="Çözücü"):
+def render_hard_constraints_status_card(is_feasible, hard_violations_count=0, hard_violation_logs=None, solver_name="Çözücü", meta=None):
     """
     Sert Kısıt uygunluk durumunu (Feasible / Infeasible) ekranda görsel uyarı kartı ve
     genişletilebilir ayrıntılı hata listesi olarak render eder.
+    Ayrıca CSP Fallback tohumu devredeyse kullanıcıya belirgin bir bilgilendirme kartı sunar.
     """
     if hard_violation_logs is None:
         hard_violation_logs = []
 
+    if meta and meta.get('is_csp_fallback'):
+        st.warning(f"""
+        ⚡ **Otomatik Kısıt Kurtarma Bildirimi (CSP Backtracking Tohumu Devrede):**  
+        3 Yapıcı Açgözlü Sezgisel (Miyopik, Kademeli, MRV/LCV) kural tabanlı atama sırasında miyopik tıkanma yaşamış ve sert kısıtları (%100 geçerlilik) sağlayamamıştır.  
+        {solver_name} aramasının geçersiz/ihlalli bir uzayda kilitlenmesini önlemek için **CSP Backtracking motoru otomatik olarak devreye girmiş** ve %100 geçerli bir başlangıç tohumu sağlayarak optimizasyonu başarıyla başlatmıştır.
+        """)
+    elif meta and meta.get('csp_attempted_and_failed'):
+        st.info(f"""
+        ℹ️ **Kısıt Kurtarma Denemesi Bildirimi:**  
+        3 Yapıcı Açgözlü Sezgisel de ihlalli sonuç üretmiştir. Sistem otomatik olarak **CSP Backtracking kurtarma motorunu çalıştırmış**, ancak mevcut personel kadrosu ve vardiya talepleri ile izin verilen sınırda geçerli bir kombinasyon bulunamamıştır. Bu nedenle en az ihlalli taslak çizelge üzerinden aramaya devam edilmiştir.
+        """)
+
     if is_feasible:
         st.success("✅ **Sert Kısıt Uygunluğu:** %100 GEÇERLİ ÇÖZÜM (Tüm vardiya kotaları, 4 MYK zorunlu ehliyeti ve yasal dinlenme süreleri eksiksiz sağlandı.)")
     else:
-        st.error(f"""
-        🚨 **DİKKAT: SERT KISIT İHLALİ TESPİT EDİLDİ ({hard_violations_count:,} Adet İhlal - Çözüm Matematiksel Olarak Geçersizdir!)**
+        is_capacity_impossible = bool(meta and (meta.get('csp_attempted_and_failed') or meta.get('is_infeasible')))
         
-        📌 **Yöneylem Araştırması ve Matematiksel Neden:**  
-        Sezgisel / Metasezgisel algoritmalar ({solver_name}), başlangıç çözümündeki yumuşak ceza puanlarını düşürmeyi hedefler. 
-        Mevcut personel sayısı ve vardiya talepleri **matematiksel olarak imkansız** olduğunda (örneğin 24 işçi varken günde 21 kişi istenmesi durumunda 7 günde 21 × 7 = 147 vardiya gerekirken, 6 gün çalışma kuralıyla 24 işçi en fazla 24 × 6 = 144 vardiya sağlayabilir - **Güvercin Yuvası İlkesi**), **ILP** matematiksel olarak *'Infeasible / Çözülemez'* derken; {solver_name} başlangıçtaki eksik kadrolu çizelge üzerinde arama yapıp yerel minimuma ulaşır ve sert kısıtları gideremez.
-        """)
+        # İhlal kategorilerini otomatik özetle
+        cats = {}
+        for log in hard_violation_logs:
+            if 'MYK' in log or 'Sertifika' in log:
+                cats['🪪 MYK Sertifika Eksikliği'] = cats.get('🪪 MYK Sertifika Eksikliği', 0) + 1
+            elif 'Haftalık Dinlenme' in log or '7 gün' in log:
+                cats['⛔ Haftalık Dinlenme (6 Gün Sınırı)'] = cats.get('⛔ Haftalık Dinlenme (6 Gün Sınırı)', 0) + 1
+            elif 'Gece->Gündüz' in log:
+                cats['🚫 Vardiyalar Arası Dinlenme (Gece->Gündüz)'] = cats.get('🚫 Vardiyalar Arası Dinlenme (Gece->Gündüz)', 0) + 1
+            elif 'Kadro Yetersizliği' in log or 'Eksik:' in log:
+                cats['❌ Vardiya Kadro Açığı'] = cats.get('❌ Vardiya Kadro Açığı', 0) + 1
+            else:
+                cats['⚠️ Diğer Sert Kısıt İhlali'] = cats.get('⚠️ Diğer Sert Kısıt İhlali', 0) + 1
+
+        cats_summary = " &nbsp;|&nbsp; ".join([f"<b>{k}:</b> {v} adet" for k, v in cats.items()]) if cats else ""
+
+        if is_capacity_impossible:
+            card_html = f"""
+            <div style="background-color: #fef2f2; border: 2px solid #ef4444; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem;">
+                <div style="color: #991b1b; font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">
+                    🚨 SERT KISIT İHLALİ TESPİT EDİLDİ ({hard_violations_count:,} Adet İhlal - Fiziksel / Matematiksel İmkansızlık)
+                </div>
+                <div style="color: #1e293b; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.6rem;">
+                    <b>📌 Kök Neden:</b> Fabrikadaki toplam personel sayısı veya sertifikalı uzman dağılımı, talep edilen vardiya kotalarını ve yasal dinlenme kurallarını karşılamak için <b>fiziksel olarak yetersizdir</b> (<i>Güvercin Yuvası İlkesi / Kapasite Aşımı</i>). Bu koşullarda hiçbir kesin veya sezgisel yöntem ihlalsiz bir çizelge üretemez.
+                </div>
+                <div style="color: #b91c1c; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem;">
+                    {cats_summary}
+                </div>
+                <div style="color: #334155; font-size: 0.88rem;">
+                    💡 <b>Çözüm Önerisi:</b> Sol menüden personel sayısını artırınız, vardiya kotalarını düşürünüz veya sertifika dağılımını düzenleyiniz.
+                </div>
+            </div>
+            """
+        else:
+            card_html = f"""
+            <div style="background-color: #fff7ed; border: 2px solid #f97316; border-radius: 10px; padding: 1.2rem; margin-bottom: 1rem;">
+                <div style="color: #9a3412; font-size: 1.15rem; font-weight: 700; margin-bottom: 0.5rem;">
+                    ⚠️ SERT KISIT İHLALİ TESPİT EDİLDİ ({hard_violations_count:,} Adet İhlal - Algoritmik Arama Hatası)
+                </div>
+                <div style="color: #1e293b; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0.6rem;">
+                    <b>📌 Kök Neden:</b> Bu problem için matematiksel olarak geçerli çözümler mevcuttur. Ancak <b>{solver_name}</b> arama motoru, stokastik optimizasyon sürecinde (çaprazlama, mutasyon, yerel komşuluk takasları vb.) sert kısıtları tamamen sağlayan bir kombinasyona ulaşamamış veya yerel bir tuzağa (yerel minimum) takılmıştır.
+                </div>
+                <div style="color: #c2410c; font-size: 0.9rem; font-weight: 600; margin-bottom: 0.4rem;">
+                    {cats_summary}
+                </div>
+                <div style="color: #334155; font-size: 0.88rem;">
+                    💡 <b>Çözüm Önerisi:</b> {solver_name} kontrol panelinden popülasyonu, jenerasyon sayısını veya yerel arama derinliğini artırarak aramayı tekrarlayınız.
+                </div>
+            </div>
+            """
+
+        st.markdown(card_html, unsafe_allow_html=True)
+
         if hard_violation_logs:
             with st.expander(f"📋 Tespit Edilen {hard_violations_count} Sert Kısıt İhlalinin Ayrıntılı Listesi", expanded=False):
                 for log in hard_violation_logs[:50]:

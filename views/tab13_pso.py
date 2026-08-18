@@ -255,7 +255,8 @@ def render_tab13(params):
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Particle Swarm Optimization (Discrete PSO)"
+        solver_name="Particle Swarm Optimization (Discrete PSO)",
+        meta=results.get('meta')
     )
 
     # --- METRİK KARTLARI (8'Lİ PANEL) ---

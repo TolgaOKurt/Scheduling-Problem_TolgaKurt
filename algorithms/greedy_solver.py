@@ -237,6 +237,10 @@ def get_best_greedy_initial_solution(n_workers, n_days, r_day, r_eve, r_night, w
     3 farklı yapıcı sezgiseli (Miyopik, Kademeli, MRV/LCV) saliseler içinde çalıştırıp
     sert kısıtları ihlal etmeyen ve toplam ceza puanı EN DÜŞÜK olan en iyi başlangıç çözümünü döndürür.
     (Best-of-Heuristics Seeding)
+    
+    Eğer tüm 3 Greedy sezgiseli de miyopik tıkanma nedeniyle ihlalli sonuç üretirse,
+    otomatik olarak CSP Backtracking motoru devreye girer ve %100 geçerli bir tohum üretir.
+    Bu durum kullanıcıya ve metasezgisellere 'is_csp_fallback' meta bayrağı ile bildirilir.
     """
     modes = [
         "1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)",
@@ -257,7 +261,46 @@ def get_best_greedy_initial_solution(n_workers, n_days, r_day, r_eve, r_night, w
     
     if valid_results:
         # En düşük toplam ceza puanına sahip olanı seç
-        return min(valid_results, key=lambda r: r['final_score'])
+        best_valid = min(valid_results, key=lambda r: r['final_score'])
+        if 'meta' not in best_valid or best_valid['meta'] is None:
+            best_valid['meta'] = {}
+        best_valid['meta']['is_csp_fallback'] = False
+        best_valid['meta']['seed_source'] = f"Greedy ({best_valid['meta'].get('solver_mode', 'Yapıcı Sezgisel')})"
+        return best_valid
     else:
-        # En az sert kısıt ihlali ve en düşük ceza puanına sahip olanı seç
-        return min(all_results, key=lambda r: (r['hard_violations_count'], r['final_score']))
+        # 3 Greedy de ihlalli çıktı! Otomatik CSP Backtracking devreye girsin (Yeterli limit: 15,000 backtrack).
+        csp_failed = False
+        try:
+            from algorithms.csp_backtracking_solver import CSPBacktrackingSolver
+            csp = CSPBacktrackingSolver(
+                n_workers=n_workers,
+                n_days=n_days,
+                r_day=r_day,
+                r_eve=r_eve,
+                r_night=r_night,
+                max_backtracks=15000,
+                custom_workers=custom_workers,
+                weights=weights
+            )
+            csp_res = csp.solve()
+            if csp_res and csp_res.get('is_feasible'):
+                if 'meta' not in csp_res or csp_res['meta'] is None:
+                    csp_res['meta'] = {}
+                csp_res['meta']['is_csp_fallback'] = True
+                csp_res['meta']['seed_source'] = "CSP Backtracking (Otomatik Kurtarma / Fallback Tohumu)"
+                csp_res['meta']['fallback_reason'] = "Tüm 3 Açgözlü Sezgisel (Miyopik, Kademeli, MRV/LCV) kısıt tıkanması yaşadığı için %100 geçerli CSP tohumu devreye girdi."
+                return csp_res
+            else:
+                csp_failed = True
+        except Exception:
+            csp_failed = True
+
+        # Eğer CSP de çözemezse (problem matematiksel olarak imkansızsa), en az ihlalliyi döndür
+        fallback_res = min(all_results, key=lambda r: (r['hard_violations_count'], r['final_score']))
+        if 'meta' not in fallback_res or fallback_res['meta'] is None:
+            fallback_res['meta'] = {}
+        fallback_res['meta']['is_csp_fallback'] = False
+        fallback_res['meta']['csp_attempted_and_failed'] = csp_failed
+        fallback_res['meta']['seed_source'] = "Greedy (İhlalli Başlangıç - CSP Sınırında da Çözülemedi)"
+        fallback_res['meta']['fallback_reason'] = "3 Greedy de ihlalli sonuç üretti ve CSP Backtracking arama sınırında geçerli bir çizelge bulamadı."
+        return fallback_res

@@ -173,6 +173,9 @@ def run_simulated_annealing(n_workers, n_days, r_day, r_eve, r_night, weights,
             'final_temperature': round(T, 4),
             'temp_history': temp_history,
             'curr_score_history': curr_score_history,
-            'acceptance_probs': acceptance_probs
+            'acceptance_probs': acceptance_probs,
+            'seed_source': init_res.get('meta', {}).get('seed_source', 'Greedy'),
+            'is_csp_fallback': init_res.get('meta', {}).get('is_csp_fallback', False),
+            'fallback_reason': init_res.get('meta', {}).get('fallback_reason', '')
         }
     )

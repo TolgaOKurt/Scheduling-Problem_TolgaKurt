@@ -41,12 +41,10 @@ class CSPBacktrackingSolver:
         if shift == 0:
             return True
             
-        # Sert Kısıt 3 & 4: Sirkadiyen Ritim & Dinlenme (Gece->Gündüz/Akşam ve Akşam->Gündüz YASAK)
+        # Sert Kısıt 4: Vardiyalar Arası Dinlenme (Gece 08:00 çıkış -> Sabah 08:00 giriş = 0 saat dinlenme YASAK)
         if day > 0:
             prev_shift = self.schedule[wid, day-1]
-            if prev_shift == 3 and shift in [1, 2]: # Gece sonrası Gündüz/Akşam yazılamaz (Yetersiz dinlenme)
-                return False
-            if prev_shift == 2 and shift == 1: # Akşam sonrası Gündüz yazılamaz (Yetersiz dinlenme)
+            if prev_shift == 3 and shift == 1: # Gece sonrası Gündüz yazılamaz (0 saat dinlenme - Sert Kısıt)
                 return False
             
         # Sert Kısıt 5: Kayan 7 günlük pencerede en az 1 OFF günü olmalı (Max 6 gün üst üste çalışma)

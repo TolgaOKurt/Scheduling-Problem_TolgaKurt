@@ -30,11 +30,9 @@ from algorithms.greedy_solver import run_greedy_algorithm, get_best_greedy_initi
 from algorithms.penalty_calculator import (
     calculate_full_penalties,
     check_swap_feasibility,
-    check_hard_constraints_single_day,
-    build_worker_request_details,
-    audit_all_hard_constraints
+    check_hard_constraints_single_day
 )
-from algorithms.solver_contract import build_standard_solver_result
+from algorithms.solver_contract import finalize_solver_execution
 
 
 def _apply_n1_micro_swap(schedule, workers, n_workers, n_days, shift_reqs):
@@ -248,47 +246,36 @@ def run_variable_neighborhood_search(
     if callback:
         callback(max_iterations, best_score, current_score, "| Bitti")
         
-    exec_time_ms = round((time.time() - start_time) * 1000, 1)
-    final_penalties, final_score = calculate_full_penalties(best_schedule, workers, n_workers, n_days, weights)
-    eval_count += 1
-    
-    improvement_rate = 0.0
-    if initial_score > final_score and initial_score > 0:
-        improvement_rate = round(((initial_score - final_score) / initial_score) * 100, 2)
-        
     term_reason = f"🔄 VNS hiyerarşik 3 komşuluk yapısı (N_1 Mikro, N_2 Mezo, N_3 Makro) ile {max_iterations} iterasyonluk sistematik aramasını tamamladı."
+
+    meta = {
+        'max_iterations': max_iterations,
+        'max_neighborhoods': max_neighborhoods,
+        'local_search_depth': local_search_depth,
+        'accepted_moves': accepted_moves,
+        'neighborhood_usage': neighborhood_usage,
+        'successful_escapes': successful_escapes,
+        'neighborhood_history': neighborhood_history,
+        'curr_score_history': curr_score_history,
+        'seed_source': greedy_seed.get('meta', {}).get('seed_source', 'Greedy'),
+        'is_csp_fallback': greedy_seed.get('meta', {}).get('is_csp_fallback', False),
+        'fallback_reason': greedy_seed.get('meta', {}).get('fallback_reason', '')
+    }
     
-    request_details = build_worker_request_details(best_schedule, workers, n_days, weights)
-    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
-        best_schedule, workers, n_workers, n_days, shift_reqs
-    )
-    
-    return build_standard_solver_result(
-        schedule=best_schedule,
+    return finalize_solver_execution(
+        best_schedule=best_schedule,
         workers=workers,
-        is_feasible=is_feasible,
-        hard_violations_count=hard_viols_count,
-        hard_violation_logs=hard_violation_logs,
-        final_score=final_score,
         initial_score=initial_score,
-        improvement_rate=improvement_rate,
-        exec_time_ms=exec_time_ms,
+        start_time=start_time,
         eval_count=eval_count,
         total_iterations=max_iterations,
+        weights=weights,
+        shift_reqs=shift_reqs,
+        n_workers=n_workers,
+        n_days=n_days,
         termination_reason=term_reason,
-        penalties=final_penalties,
-        request_details=request_details,
         score_history=best_score_history,
-        meta={
-            'max_iterations': max_iterations,
-            'max_neighborhoods': max_neighborhoods,
-            'local_search_depth': local_search_depth,
-            'accepted_moves': accepted_moves,
-            'neighborhood_usage': neighborhood_usage,
-            'successful_escapes': successful_escapes,
-            'neighborhood_history': neighborhood_history,
-            'curr_score_history': curr_score_history
-        }
+        meta=meta
     )
 
 

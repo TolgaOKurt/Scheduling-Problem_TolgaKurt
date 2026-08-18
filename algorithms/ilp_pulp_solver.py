@@ -33,43 +33,22 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
     w_night = weights.get('night_imb', 25)
     w_exp = weights.get('exp_mix', 30)
     w_pref = weights.get('pref_off', 40)
-    w_posta = weights.get('posta', 35)
+    w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     
-    # 1. Analitik kaçınılmaz alt sınırlar ve Neden Analizleri
-    reasons = []
-    
-    # Gece Dengesizliği Analitiği
+    # 1. Analitik Kaçınılmaz Alt Sınırlar
     tot_night_req = r_night * n_days
     r = tot_night_req % max(1, n_workers)
     target_avg_night = tot_night_req / max(1, n_workers)
     night_lb = (2.0 * r * (n_workers - r) / max(1, n_workers)) * w_night
-    if night_lb > 0:
-        n_high = r
-        n_low = n_workers - r
-        val_high = math.ceil(target_avg_night)
-        val_low = math.floor(target_avg_night)
-        reasons.append(
-            f"🌙 **Gece Nöbeti Dengesizliği ({round(night_lb, 1)} Puan):** Toplam {tot_night_req} gece nöbeti {n_workers} işçiye tam bölünememektedir (ortalama {target_avg_night:.2f} nöbet/kişi). "
-            f"Fiziksel olarak {n_high} işçi zorunlu {val_high} gece nöbeti, {n_low} işçi ise {val_low} gece nöbeti tutmak zorundadır (kaçınılmaz mutlak sapma)."
-        )
-    else:
-        reasons.append(f"🌙 **Gece Nöbeti Dengesizliği (0 Puan):** Toplam {tot_night_req} gece nöbeti {n_workers} personele tam bölünebilmektedir ({target_avg_night:.0f} nöbet/kişi).")
 
-    # Kıdemli Usta Analitiği
     ustas = [w for w in workers if w['is_usta']]
     max_shifts_per_usta = math.floor(n_days * 6 / 7)
     tot_usta_cap = len(ustas) * max_shifts_per_usta
     tot_req_shifts = 3 * n_days
     missing_usta = max(0, tot_req_shifts - tot_usta_cap)
     usta_lb = missing_usta * w_exp
-    if usta_lb > 0:
-        reasons.append(
-            f"🏅 **Kıdemli Usta Eksikliği ({round(usta_lb, 1)} Puan):** Toplam {tot_req_shifts} vardiya için kadroda {len(ustas)} usta bulunmaktadır. "
-            f"6 gün çalışma kuralıyla ustalar en fazla {tot_usta_cap} vardiyada bulunabilir; {missing_usta} vardiyada kaçınılmaz usta açığı oluşur."
-        )
 
-    # Kişisel İzin Yığılması Analitiği
     daily_req_sum = r_day + r_eve + r_night
     max_off_capacity_per_day = max(0, n_workers - daily_req_sum)
     off_requests_per_day = {}
@@ -85,11 +64,6 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             excess = req_count - max_off_capacity_per_day
             pref_lb += excess * w_pref
             over_pref_details.append(f"Gün {day_idx+1}'de {req_count} talep (Kapasite: {max_off_capacity_per_day})")
-    if pref_lb > 0:
-        reasons.append(
-            f"🏖️ **Kişisel İzin Çakışması ({round(pref_lb, 1)} Puan):** Günlük vardiya kotaları ({daily_req_sum} kişi) nedeniyle günde en fazla {max_off_capacity_per_day} kişi izinli olabilir. "
-            f"Güvercin Yuvası İlkesi gereği ({', '.join(over_pref_details)}) izin taleplerinin bir kısmı zorunlu olarak karşılanamaz."
-        )
 
     analytical_lb = night_lb + usta_lb + pref_lb
 
@@ -200,6 +174,48 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
         'Posta Takım Bütünlüğü İhlali': c_posta,
         'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': c_circ
     }
+
+    # 2. Açıklama ve Gerekçe Metinlerini Breakdown Değerleriyle Senkronize Olarak Üret
+    reasons = []
+    if c_night > 0:
+        if night_lb > 0:
+            n_high = r
+            n_low = n_workers - r
+            val_high = math.ceil(target_avg_night)
+            val_low = math.floor(target_avg_night)
+            reasons.append(
+                f"🌙 **Gece Nöbeti Dengesizliği ({round(c_night, 1)} Puan):** Toplam {tot_night_req} gece nöbeti {n_workers} işçiye tam bölünememektedir (ortalama {target_avg_night:.2f} nöbet/kişi). "
+                f"Fiziksel olarak {n_high} işçi zorunlu {val_high} gece nöbeti, {n_low} işçi ise {val_low} gece nöbeti tutmak zorundadır."
+            )
+        else:
+            reasons.append(
+                f"🌙 **Gece Nöbeti Dengesizliği ({round(c_night, 1)} Puan):** Toplam {tot_night_req} gece nöbeti matematiksel olarak tam bölünse de, "
+                f"MYK sertifikaları, posta bütünlüğü ve dinlenme kısıtlarının eşzamanlı optimizasyonu sonucunda kaçınılmaz {round(c_night/w_night, 1)} nöbetlik sapma oluşmaktadır."
+            )
+    else:
+        reasons.append(f"🌙 **Gece Nöbeti Dengesizliği (0 Puan):** Toplam {tot_night_req} gece nöbeti {n_workers} personele tam bölünebilmektedir ({target_avg_night:.0f} nöbet/kişi).")
+
+    if c_exp > 0:
+        reasons.append(
+            f"🏅 **Kıdemli Usta Eksikliği ({round(c_exp, 1)} Puan):** Toplam {tot_req_shifts} vardiya için kadroda {len(ustas)} usta bulunmaktadır. "
+            f"6 gün çalışma kuralıyla ustalar en fazla {tot_usta_cap} vardiyada bulunabilir; {missing_usta} vardiyada kaçınılmaz usta açığı oluşur."
+        )
+
+    if c_pref > 0:
+        reasons.append(
+            f"🏖️ **Kişisel İzin Çakışması ({round(c_pref, 1)} Puan):** Günlük vardiya kotaları ({daily_req_sum} kişi) nedeniyle günde en fazla {max_off_capacity_per_day} kişi izinli olabilir. "
+            f"Güvercin Yuvası İlkesi gereği ({', '.join(over_pref_details) if over_pref_details else 'kapasite aşımı'}) izin taleplerinin bir kısmı zorunlu olarak karşılanamaz."
+        )
+
+    if c_posta > 0:
+        reasons.append(
+            f"👥 **Posta Takım Bütünlüğü ({round(c_posta, 1)} Puan):** Posta gruplarının kişi sayıları ile vardiya talep sayıları tam örtüşmediği için kaçınılmaz takım bölünmesi oluşmaktadır."
+        )
+
+    if c_circ > 0:
+        reasons.append(
+            f"🔄 **Sirkadiyen Ritim Geçişi ({round(c_circ, 1)} Puan):** Vardiya kotaları ve sertifika zorunlulukları nedeniyle kaçınılmaz Akşam->Gündüz geçişi cezası oluşmaktadır."
+        )
 
     if return_breakdown:
         return final_total_lb, breakdown, reasons
@@ -365,7 +381,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             model += posta_dev[p, t] == pulp.lpSum([dev_posta_k[p, t, k] for k in [1, 2, 3]]), f"PostaDevSum_{p}_{t}"
 
     # 4. TAM KÜRESEL AMAÇ FONKSİYONU
-    w_posta = weights.get('posta', 35)
+    w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_pref = weights.get('pref_off', 40)
     w_night_imb = weights.get('night_imb', 25)
@@ -385,7 +401,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     log_file = tempfile.NamedTemporaryFile(delete=False, suffix=".log").name
     cbc_log_content = ""
     try:
-        solver = pulp.PULP_CBC_CMD(msg=True, timeLimit=time_limit, logPath=log_file)
+        solver = pulp.PULP_CBC_CMD(msg=False, timeLimit=time_limit, logPath=log_file)
         status_code = model.solve(solver)
         if os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8", errors="ignore") as f:

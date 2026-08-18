@@ -168,7 +168,8 @@ Pahalı veya ticari MILP çözücülere (Gurobi, CPLEX) ihtiyaç duymaz. <b>Tama
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Hill Climbing (Tepeden Tırmanma)"
+        solver_name="Hill Climbing (Tepeden Tırmanma)",
+        meta=results.get('meta')
     )
 
     # --- METRİK KARTLARI ---

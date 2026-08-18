@@ -137,14 +137,8 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
                 split_day = random.randint(1, n_days - 1)
                 child_candidate = child.copy()
                 child_candidate[:, split_day:] = p2[:, split_day:]
-                boundary_ok = True
-                for _wid in range(n_workers):
-                    prev = child_candidate[_wid, split_day - 1]
-                    nxt  = child_candidate[_wid, split_day]
-                    if (prev == 3 and nxt == 1) or (prev == 2 and nxt == 1):
-                        boundary_ok = False
-                        break
-                if boundary_ok:
+                cand_feasible, _, _ = audit_all_hard_constraints(child_candidate, workers, n_workers, n_days, shift_reqs)
+                if cand_feasible:
                     child = child_candidate
 
             if random.random() < mutation_rate:
@@ -202,6 +196,9 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
             'population_size': pop_size,
             'local_search_depth': local_search_depth,
             'avg_score_history': avg_score_history,
-            'diversity_history': diversity_history
+            'diversity_history': diversity_history,
+            'seed_source': greedy_seed.get('meta', {}).get('seed_source', 'Greedy'),
+            'is_csp_fallback': greedy_seed.get('meta', {}).get('is_csp_fallback', False),
+            'fallback_reason': greedy_seed.get('meta', {}).get('fallback_reason', '')
         }
     )

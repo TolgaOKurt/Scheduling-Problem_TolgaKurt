@@ -154,7 +154,8 @@ def render_tab9(params):
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Genetik Algoritma (GA)"
+        solver_name="Genetik Algoritma (GA)",
+        meta=results.get('meta')
     )
 
     # --- METRİK KARTLARI ---

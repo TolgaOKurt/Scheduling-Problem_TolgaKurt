@@ -241,7 +241,8 @@ def render_tab12(params):
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Variable Neighborhood Search (VNS)"
+        solver_name="Variable Neighborhood Search (VNS)",
+        meta=results.get('meta')
     )
 
     # --- METRİK KARTLARI ---

@@ -87,6 +87,67 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     return penalties, total_score
 
 
+def build_fast_evaluator(workers, n_days, weights):
+    """
+    Metasezgisel algoritmaların iç döngülerinde (inner loop) binlerce kez çağrılan
+    yüksek hızlı, vektörize ceza değerlendirici fonksiyonunu (closure) oluşturur.
+    Tüm ön hesaplamaları (is_usta, pref_days, posta_groups) bir kez yapar.
+    """
+    if weights is None:
+        weights = {}
+
+    w_posta = weights.get('posta', weights.get('posta_unity', 15))
+    w_circ = weights.get('circadian', 50)
+    w_night_imb = weights.get('night_imb', 25)
+    w_exp = weights.get('exp_mix', 30)
+    w_pref = weights.get('pref_off', 40)
+
+    is_usta_arr = np.array([w.get('is_usta', False) for w in workers])
+    pref_days = np.array([int(w.get('pref_off', 1)) - 1 for w in workers])
+    valid_pref = (pref_days >= 0) & (pref_days < n_days)
+    pref_rows = np.arange(len(pref_days))[valid_pref]
+    pref_cols = pref_days[valid_pref]
+
+    postas = np.array([w.get('posta', '') for w in workers])
+    posta_groups = [np.where(postas == p)[0] for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']]
+
+    def fast_evaluate(sched: np.ndarray) -> int:
+        # 1. Sirkadiyen Ritim
+        p_circ = int(((sched[:, :-1] == 2) & (sched[:, 1:] == 1)).sum() * w_circ) if n_days > 1 else 0
+        
+        # 2. Gece Dengesizliği
+        night_counts = (sched == 3).sum(axis=1)
+        avg_night = night_counts.mean()
+        p_night = int(np.abs(night_counts - avg_night).sum() * w_night_imb)
+
+        # 3. Kişisel İzin
+        p_pref = int((sched[pref_rows, pref_cols] != 0).sum() * w_pref) if len(pref_rows) > 0 else 0
+
+        # 4. Usta Varlığı
+        p_exp = 0
+        for t in range(n_days):
+            col = sched[:, t]
+            for k in (1, 2, 3):
+                mask = (col == k)
+                if mask.any() and not is_usta_arr[mask].any():
+                    p_exp += w_exp
+
+        # 5. Posta Bütünlüğü
+        p_posta = 0
+        for g in posta_groups:
+            if len(g) > 1:
+                for t in range(n_days):
+                    col_g = sched[g, t]
+                    act = col_g[col_g > 0]
+                    if len(act) > 1:
+                        bc = np.bincount(act)
+                        p_posta += (len(act) - bc.max()) * w_posta
+
+        return p_circ + p_night + p_pref + p_exp + p_posta
+
+    return fast_evaluate
+
+
 def check_hard_constraints_single_day(schedule, workers, day, n_workers, shift_reqs):
     """
     Belirli bir günde Sert Kısıtların (Vardiya kotaları ve 4 MYK zorunlu sertifikası)
@@ -127,17 +188,11 @@ def check_swap_feasibility(schedule, workers, day, w1_idx, w2_idx, n_workers, n_
     s1 = schedule[w1_idx, day]
     s2 = schedule[w2_idx, day]
 
-    # Gece (3) -> Ertesi gün Gündüz (1) dinlenme ihlali kontrolü
+    # Gece (3) -> Ertesi gün Gündüz (1) dinlenme ihlali kontrolü (0 saat dinlenme - Sert Kısıt)
     if day > 0 and schedule[w1_idx, day - 1] == 3 and s1 == 1: return False
     if day < n_days - 1 and s1 == 3 and schedule[w1_idx, day + 1] == 1: return False
     if day > 0 and schedule[w2_idx, day - 1] == 3 and s2 == 1: return False
     if day < n_days - 1 and s2 == 3 and schedule[w2_idx, day + 1] == 1: return False
-
-    # Akşam (2) -> Ertesi gün Gündüz (1) dinlenme ihlali kontrolü
-    if day > 0 and schedule[w1_idx, day - 1] == 2 and s1 == 1: return False
-    if day < n_days - 1 and s1 == 2 and schedule[w1_idx, day + 1] == 1: return False
-    if day > 0 and schedule[w2_idx, day - 1] == 2 and s2 == 1: return False
-    if day < n_days - 1 and s2 == 2 and schedule[w2_idx, day + 1] == 1: return False
 
     # 7 günlük kayan pencerede en az 1 gün OFF (dinlenme) kuralı
     for wid in (w1_idx, w2_idx):
@@ -222,17 +277,13 @@ def audit_all_hard_constraints(schedule, workers, n_workers, n_days, shift_reqs)
                 )
                 break  # İşçi başına haftalık pencereyi bir kez raporla
                 
-        # 4 & 5: Ardışık günler dinlenme süresi kontrolü
+        # 4: Ardışık günler dinlenme süresi kontrolü (Gece 08:00 çıkış -> Sabah 08:00 giriş = 0 saat dinlenme)
         for d in range(n_days - 1):
             s_curr = schedule[wid, d]
             s_next = schedule[wid, d + 1]
             if s_curr == 3 and s_next == 1:
                 hard_logs.append(
-                    f"🚫 Yetersiz Dinlenme (Gece->Gündüz): {w_name} Gün {d+1} Gece (08:00 çıkış) sonrası Gün {d+2} Gündüz (08:00 giriş) yazıldı (0 saat dinlenme)!"
-                )
-            elif s_curr == 2 and s_next == 1:
-                hard_logs.append(
-                    f"🚫 Yetersiz Dinlenme (Akşam->Gündüz): {w_name} Gün {d+1} Akşam (24:00 çıkış) sonrası Gün {d+2} Gündüz (08:00 giriş) yazıldı (8 saat dinlenme < 11 saat)!"
+                    f"🚫 Yetersiz Dinlenme (Gece->Gündüz): {w_name} Gün {d+1} Gece (08:00 çıkış) sonrası Gün {d+2} Gündüz (08:00 giriş) yazıldı (0 saat dinlenme - Yasal Olarak İmkansız)!"
                 )
 
     is_feasible = (len(hard_logs) == 0)

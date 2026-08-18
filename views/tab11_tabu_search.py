@@ -188,7 +188,8 @@ Hastalık veya acil durumlarda çalışan izinleri bozulduğunda, <b>sadece prob
         results.get('is_feasible', True),
         results.get('hard_violations_count', 0),
         results.get('hard_violation_logs', []),
-        solver_name="Tabu Search (Tabu Araması)"
+        solver_name="Tabu Search (Tabu Araması)",
+        meta=results.get('meta')
     )
 
     # --- METRİK KARTLARI ---

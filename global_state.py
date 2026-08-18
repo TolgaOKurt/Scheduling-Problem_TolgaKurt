@@ -223,9 +223,9 @@ def render_global_config_tab():
         <h4 style="color: #047857; margin-top: 0;">🏭 2. Vardiya Min İhtiyaçları</h4>
         </div>""", unsafe_allow_html=True)
         
-        r_day_in = st.number_input("Gündüz (08-16) Min İhtiyaç", min_value=1, max_value=15, value=cfg['r_day'], key="ui_cfg_rd")
-        r_eve_in = st.number_input("Akşam (16-24) Min İhtiyaç", min_value=1, max_value=15, value=cfg['r_eve'], key="ui_cfg_re")
-        r_night_in = st.number_input("Gece (24-08) Min İhtiyaç", min_value=1, max_value=15, value=cfg['r_night'], key="ui_cfg_rn")
+        r_day_in = st.number_input("Gündüz (08-16) Min İhtiyaç", min_value=1, max_value=30, value=cfg['r_day'], key="ui_cfg_rd")
+        r_eve_in = st.number_input("Akşam (16-24) Min İhtiyaç", min_value=1, max_value=30, value=cfg['r_eve'], key="ui_cfg_re")
+        r_night_in = st.number_input("Gece (24-08) Min İhtiyaç", min_value=1, max_value=30, value=cfg['r_night'], key="ui_cfg_rn")
 
     with col3:
         st.markdown("""<div class="card-box" style="border-top: 4px solid #d97706; padding: 16px;">
@@ -243,7 +243,7 @@ def render_global_config_tab():
             st.session_state["ui_cfg_wp"] = DEFAULT_PENALTIES['pref_off']
             st.session_state["ui_cfg_wposta"] = DEFAULT_PENALTIES['posta']
 
-        st.button("🔄 Cezaları Varsayılana Sıfırla", on_click=reset_penalty_weights, use_container_width=True, key="btn_reset_penalties")
+        st.button("🔄 Cezaları Varsayılana Sıfırla", on_click=reset_penalty_weights, width="stretch", key="btn_reset_penalties")
 
         w_circadian_in = st.slider("Sirkadiyen Ritim Cezası", 10, 100, cfg['circadian'], 10, key="ui_cfg_wc")
         w_night_imb_in = st.slider("Gece Dengesizlik Cezası", 5, 50, cfg['night_imb'], 5, key="ui_cfg_wn")
@@ -341,7 +341,7 @@ def render_global_config_tab():
             )
             cfg_target['editor_version'] = cfg_target.get('editor_version', 0) + 1
 
-        st.button("🔄 Kadroyu Sıfırla / Yeniden Üret", on_click=force_regenerate_roster, use_container_width=True, key="btn_regen_roster")
+        st.button("🔄 Kadroyu Sıfırla / Yeniden Üret", on_click=force_regenerate_roster, width="stretch", key="btn_regen_roster")
 
     # Kadro üretim tetikleyicisi kontrolü
     curr_sig = (n_workers_in, n_days_in, kadro_mode_in, rand_seed_in)
@@ -382,7 +382,7 @@ def render_global_config_tab():
     df_edited_roster = st.data_editor(
         df_roster_input,
         num_rows="fixed",
-        use_container_width=True,
+        width="stretch",
         key=editor_key
     )
     

@@ -21,8 +21,8 @@ import random
 import numpy as np
 from algorithms.worker_manager import generate_worker_profiles
 from algorithms.greedy_solver import run_greedy_algorithm, get_best_greedy_initial_solution
-from algorithms.penalty_calculator import calculate_full_penalties, check_hard_constraints_single_day, build_worker_request_details, audit_all_hard_constraints
-from algorithms.solver_contract import build_standard_solver_result
+from algorithms.penalty_calculator import calculate_full_penalties, check_hard_constraints_single_day, build_fast_evaluator
+from algorithms.solver_contract import finalize_solver_execution
 
 
 def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
@@ -60,57 +60,13 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
     initial_score = current_score
 
     # Önceden Hesaplanmış Hızlı Dizi Yapıları (Vektörel Hızlandırma)
-    is_usta_arr = np.array([w['is_usta'] for w in workers])
-    pref_days = np.array([int(w['pref_off']) - 1 for w in workers])
-    postas = np.array([w['posta'] for w in workers])
-    posta_groups = [np.where(postas == p)[0] for p in ['Posta A', 'Posta B', 'Posta C', 'Posta D']]
-    
-    # MYK Zorunlu Sertifika Maskeleri
+    fast_evaluate = build_fast_evaluator(workers, n_days, weights)
+
+    # MYK Zorunlu Sertifika Maskeleri (Hızlı Uygunluk Kontrolü İçin)
     required_skills = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
     skill_masks = []
     for sk in required_skills:
         skill_masks.append(np.array([sk in w['skills'] for w in workers]))
-
-    w_circ = weights.get('circadian', 50)
-    w_night_imb = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
-    w_pref = weights.get('pref_off', 40)
-    w_posta = weights.get('posta', 15)
-
-    def fast_evaluate(sched):
-        # 1. Sirkadiyen
-        p_circ = int(((sched[:, :-1] == 2) & (sched[:, 1:] == 1)).sum() * w_circ)
-        
-        # 2. Gece Dengesizliği
-        night_counts = (sched == 3).sum(axis=1)
-        avg_night = night_counts.mean()
-        p_night = int(np.abs(night_counts - avg_night).sum() * w_night_imb)
-
-        # 3. Kişisel İzin (0-indexed day)
-        valid_pref = (pref_days >= 0) & (pref_days < n_days)
-        p_pref = int((sched[valid_pref, pref_days[valid_pref]] != 0).sum() * w_pref)
-
-        # 4. Usta Varlığı
-        p_exp = 0
-        for t in range(n_days):
-            col = sched[:, t]
-            for k in (1, 2, 3):
-                mask = (col == k)
-                if mask.any() and not is_usta_arr[mask].any():
-                    p_exp += w_exp
-
-        # 5. Posta Bütünlüğü
-        p_posta = 0
-        for g in posta_groups:
-            if len(g) > 1:
-                for t in range(n_days):
-                    col_g = sched[g, t]
-                    act = col_g[col_g > 0]
-                    if len(act) > 1:
-                        bc = np.bincount(act)
-                        p_posta += (len(act) - bc.max()) * w_posta
-
-        return p_circ + p_night + p_pref + p_exp + p_posta
 
     def fast_feasibility(sched, d, w1_idx, w2_idx):
         # 1. MYK 4 Ehliyet Kontrolü
@@ -273,41 +229,30 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
     if callback:
         callback(len(best_score_history), best_score, current_score, "| Bitti")
 
-    exec_time = round((time.time() - start_time) * 1000, 2)
-    final_penalties, final_total = calculate_full_penalties(best_schedule, workers, n_workers, n_days, weights)
-    eval_count += 1
-    
-    improvement_rate = 0.0
-    if initial_score > final_total and initial_score > 0:
-        improvement_rate = round(((initial_score - final_total) / initial_score) * 100, 1)
+    meta = {
+        'accepted_moves': accepted_moves,
+        'aspiration_count': aspiration_count,
+        'aspiration_events': aspiration_events,
+        'tabu_tenure': tabu_tenure,
+        'curr_score_history': curr_score_history,
+        'tabu_size_history': tabu_size_history,
+        'seed_source': greedy_seed.get('meta', {}).get('seed_source', 'Greedy'),
+        'is_csp_fallback': greedy_seed.get('meta', {}).get('is_csp_fallback', False),
+        'fallback_reason': greedy_seed.get('meta', {}).get('fallback_reason', '')
+    }
 
-    request_details = build_worker_request_details(best_schedule, workers, n_days, weights)
-    is_feasible, hard_viols_count, hard_violation_logs = audit_all_hard_constraints(
-        best_schedule, workers, n_workers, n_days, shift_reqs
-    )
-
-    return build_standard_solver_result(
-        schedule=best_schedule,
+    return finalize_solver_execution(
+        best_schedule=best_schedule,
         workers=workers,
-        is_feasible=is_feasible,
-        hard_violations_count=hard_viols_count,
-        hard_violation_logs=hard_violation_logs,
-        final_score=final_total,
         initial_score=initial_score,
-        improvement_rate=improvement_rate,
-        exec_time_ms=exec_time,
+        start_time=start_time,
         eval_count=eval_count,
         total_iterations=len(best_score_history),
+        weights=weights,
+        shift_reqs=shift_reqs,
+        n_workers=n_workers,
+        n_days=n_days,
         termination_reason=termination_reason,
-        penalties=final_penalties,
-        request_details=request_details,
         score_history=best_score_history,
-        meta={
-            'accepted_moves': accepted_moves,
-            'aspiration_count': aspiration_count,
-            'aspiration_events': aspiration_events,
-            'tabu_tenure': tabu_tenure,
-            'curr_score_history': curr_score_history,
-            'tabu_size_history': tabu_size_history
-        }
+        meta=meta
     )
