@@ -168,7 +168,7 @@ def render_global_config_tab():
     st.markdown("## ⚙️ Merkezi Model Yapılandırması & Kadro Yönetimi")
     st.markdown("""
     <div style="background-color: #eff6ff; border-left: 5px solid #2563eb; border-radius: 8px; padding: 14px 18px; margin-bottom: 20px; color: #1e3a8a;">
-        📌 <b>Global Parametre Merkezi:</b> Bu sayfada belirlediğiniz <b>Personel Sayısı, Vardiya Gereksinimleri, Ceza Katsayıları, Canlı Akış Sıklığı ve Kadro Yetkinlikleri</b> tüm optimizasyon sekmelerine (Sekme 4 - 11 ve Benchmark) anında ve kalıcı olarak aktarılır.
+        📌 <b>Global Parametre Merkezi:</b> Bu sayfada belirlediğiniz <b>Personel Sayısı, Vardiya Gereksinimleri, Ceza Katsayıları, Canlı Akış Sıklığı ve Kadro Yetkinlikleri</b> tüm optimizasyon sekmelerine anında ve kalıcı olarak aktarılır.
     </div>
     """, unsafe_allow_html=True)
 

@@ -23,7 +23,7 @@ from views.common_components import (
 
 def render_tab6(params):
     """Sekme 6 içeriğini çizer: ILP / MILP Matematiksel Optimizasyon Çözücüsü ve Grafikler."""
-    st.markdown("## 🎯 Integer Linear Programming (ILP / MILP - Tam Sayılı Programlama)")
+    st.markdown("## 🎯 Sekme 6: Integer Linear Programming (ILP / MILP - Tam Sayılı Programlama)")
 
 
     # --- TEORİK KARTLAR ---

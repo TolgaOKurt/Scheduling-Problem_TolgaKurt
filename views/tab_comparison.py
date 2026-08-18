@@ -2,9 +2,8 @@
 ================================================================================
   VIEWS/TAB_COMPARISON.PY - BÜTÜNCÜL KARŞILAŞTIRMA & BENCHMARK ANALİZİ
 ================================================================================
-  Bu modül; Matematiksel (ILP/MILP, CSP), Sezgisel (Greedy) ve Metasezgisel
-  (Hill Climbing, Simulated Annealing, Genetic Algorithm, Memetic Algorithm,
-  Tabu Search) yaklaşımların teorik ve pratik karşılaştırmalarını sunar.
+  Bu modül; Matematiksel , Sezgisel  ve Metasezgisel
+  yaklaşımların teorik ve pratik karşılaştırmalarını sunar.
 ================================================================================
 """
 

@@ -2,8 +2,7 @@
 ================================================================================
   ALGORITHMS/PENALTY_CALCULATOR.PY - MERKEZİ CEZA PUANI & KISIT MOTORU
 ================================================================================
-  Bu modül, tüm çizelgeleme algoritmalarının (Greedy, CSP, ILP, Hill Climbing,
-  Simulated Annealing, Genetic Algorithm, Memetic Algorithm, Tabu Search)
+  Bu modül, tüm çizelgeleme algoritmalarının
   yumuşak kısıt ceza puanlarını ve sert kısıt uygunluklarını TEK BİR MERKEZDEN
   (Single Source of Truth) standart, adil ve hatasız hesaplamasını sağlar.
 ================================================================================

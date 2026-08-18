@@ -31,7 +31,7 @@ from views.common_components import (
 
 def render_tab4(params):
     """Sekme 4 içeriğini çizer: Greedy Simülasyonu, Sert İhlal Analizi, İzin Talepleri ve Grafikler."""
-    st.markdown("## ⚡ Yapıcı Sezgiseller (Constructive / Greedy Heuristics) Vardiya Simülasyonu")
+    st.markdown("## ⚡ Sekme 4: Yapıcı Sezgiseller (Constructive / Greedy Heuristics) Vardiya Simülasyonu")
 
     # --- TEORİK KAVRAM KARTLARI (LİTERATÜR TANITIMI) ---
     c_col1, c_col2 = st.columns(2)

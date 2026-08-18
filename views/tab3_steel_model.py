@@ -8,7 +8,7 @@ import pandas as pd
 
 def render_tab3():
     """Sekme 3 içeriğini çizer: Çelik sanayi dinamikleri, 5 Sert / 5 Yumuşak kısıt ve MILP matematiksel modeli."""
-    st.markdown("## 🏗️ Çelik ve Metal Sanayisi Çizelgeleme Kısıtları & Matematiksel Modeli (MILP)")
+    st.markdown("## 🏗️ Sekme 3: Çelik ve Metal Sanayisi Çizelgeleme Kısıtları & Matematiksel Modeli (MILP)")
     st.markdown("""
     Entegre demir-çelik tesisleri; yüksek fırınlar, çelikhaneler, sürekli döküm hatları ve haddehaneleriyle 
     **dünyanın en zorlu, tehlikeli ve kesintisiz (7/24/365)** çalışma ortamlarından biridir. 

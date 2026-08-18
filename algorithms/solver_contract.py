@@ -2,7 +2,7 @@
 ================================================================================
   ALGORITHMS/SOLVER_CONTRACT.PY - STANDART ÇÖZÜCÜ SÖZLEŞMESİ & KANONİK VERİ MODELİ
 ================================================================================
-  Bu modül, projede yer alan tüm 8 algoritmanın (Greedy, CSP, ILP, HC, SA, GA, MA, TS)
+  Bu modül, projede yer alan tüm çözücülerin
   ve tüm sekmelerin kesinlikle TEK ve STANDART bir veri formatı (1 Kavram = 1 Anahtar)
   üzerinden haberleşmesini garanti eder.
 ================================================================================

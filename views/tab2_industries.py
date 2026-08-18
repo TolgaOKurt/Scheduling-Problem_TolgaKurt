@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 
 def render_tab2():
     """Sekme 2 içeriğini çizer: Elektrik, Ulaşım, Çelik Sanayisi Karşılaştırması ve Radar Analizi."""
-    st.markdown("## 🏭 NSP Modelinin Sanayi ve Endüstri Sektörlerindeki Kullanımı")
+    st.markdown("## 🏭 Sekme 2: NSP Modelinin Sanayi ve Endüstri Sektörlerindeki Kullanımı")
     st.markdown("""
     Hemşire Çizelgeleme Problemi (NSP) için geliştirilen matematiksel kısıt optimizasyonu ve yöneylem araştırması modelleri, 
     yalnızca sağlık sektöründe sınırlı kalmayıp **7/24 kesintisiz operasyon gerektiren, yüksek iş güvenliği riski barındıran 

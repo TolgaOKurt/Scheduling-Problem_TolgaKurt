@@ -29,7 +29,7 @@ from views.common_components import (
 
 def render_tab10(params):
     """Sekme 10 içeriğini çizer: Memetik Algoritma (MA) Hibrit Evrimsel Çözücü ve Analitik Grafikler."""
-    st.markdown("## 🧬 Sekme 10: Memetic Algorithm (Hibrit Genetik + Yerel Tırmanma Çözücüsü)")
+    st.markdown("## 🏆 Sekme 10: Memetic Algorithm (Hibrit Genetik + Yerel Tırmanma Çözücüsü)")
 
 
     # --- TEORİK KARTLAR ---

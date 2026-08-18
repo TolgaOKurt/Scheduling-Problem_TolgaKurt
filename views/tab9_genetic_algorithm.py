@@ -29,7 +29,7 @@ from views.common_components import (
 
 def render_tab9(params):
     """Sekme 9 içeriğini çizer: Genetik Algoritma (GA) Evrimsel Çözücüsü ve Analitik Grafikler."""
-    st.markdown("## 🧬 Genetic Algorithm (Genetik Algoritma & Evrimsel Arama)")
+    st.markdown("## 🧬 Sekme 9: Genetic Algorithm (Genetik Algoritma & Evrimsel Arama)")
 
 
     # --- TEORİK KARTLAR ---

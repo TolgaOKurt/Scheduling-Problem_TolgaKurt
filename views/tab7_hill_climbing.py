@@ -28,7 +28,7 @@ from views.common_components import (
 
 def render_tab7(params):
     """Sekme 7 içeriğini çizer: Hill Climbing / Local Search Metasezgisel Çözücüsü ve Grafikler."""
-    st.markdown("## 🏔️ Hill Climbing / Local Search (Tepeden Tırmanma & Yöresel Arama)")
+    st.markdown("## 🏔️ Sekme 7: Hill Climbing / Local Search (Tepeden Tırmanma & Yöresel Arama)")
 
 
     # --- TEORİK KARTLAR ---

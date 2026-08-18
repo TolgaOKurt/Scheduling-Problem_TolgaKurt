@@ -29,7 +29,7 @@ from views.common_components import (
 
 def render_tab8(params):
     """Sekme 8 içeriğini çizer: Simulated Annealing (Tavlama Benzetimi) Metasezgisel Çözücüsü ve Grafikler."""
-    st.markdown("## ♨️ Simulated Annealing (Tavlama Benzetimi & Stokastik Arama)")
+    st.markdown("## ♨️ Sekme 8: Simulated Annealing (Tavlama Benzetimi & Stokastik Arama)")
 
 
     # --- TEORİK KARTLAR ---

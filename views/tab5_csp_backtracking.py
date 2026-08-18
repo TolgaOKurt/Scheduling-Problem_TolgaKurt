@@ -26,7 +26,7 @@ from views.common_components import (
 
 def render_tab5(params):
     """Sekme 5 içeriğini çizer: Backtracking / CSP Teorisi, Simülasyonu, Grafikler ve Karşılaştırma Matrisi."""
-    st.markdown("## 🔍 Backtracking / Constraint Satisfaction Problem (CSP) Yaklaşımı")
+    st.markdown("## 🔍 Sekme 5: Backtracking / Constraint Satisfaction Problem (CSP) Yaklaşımı")
 
 
     # --- TEORİK KARTLAR ---

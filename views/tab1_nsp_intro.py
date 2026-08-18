@@ -7,7 +7,7 @@ import streamlit as st
 
 def render_tab1():
     """Sekme 1 içeriğini çizer: NSP tanımı, tarihçesi, kısıt mimarisi ve NP-Hard analizi."""
-    st.markdown("## 📖 Hemşire Çizelgeleme Problemi (NSP / NRP) Nedir?")
+    st.markdown("## 📖 Sekme 1: Hemşire Çizelgeleme Problemi (NSP / NRP) Nedir?")
     st.markdown("""
     **Hemşire Çizelgeleme Problemi (Nurse Scheduling Problem - NSP)** veya uluslararası literatürdeki adıyla 
     **Hemşire Nöbet Planlama Problemi (Nurse Rostering Problem - NRP)**; personelin belirli bir planlama periyodunda 
