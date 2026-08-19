@@ -59,7 +59,7 @@ def build_standard_solver_result(
             'Posta Takım Bütünlüğü İhlali': 0,
             'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
             'Gece Nöbeti Dengesizliği': 0,
-            'Kıdem & MYK Sertifika Eksikliği': 0,
+            'Kıdem / Usta Eksikliği': 0,
             'Kişisel İzin İhlali': 0
         }
         

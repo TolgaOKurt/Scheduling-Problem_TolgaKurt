@@ -290,27 +290,31 @@ def render_tab3():
 
     st.divider()
 
-    # 3.5 Yumuşak Kısıt Doğrusallaştırma Denklemleri
+    # 3.4 Yumuşak Kısıt Doğrusallaştırma Denklemleri
     st.markdown("### 3.4. Matematiksel Yumuşak Kısıt Doğrusallaştırma Denklemleri (Soft Constraints)")
     st.markdown("Doğrusal programlama (MILP) yapısını korumak amacıyla doğrusal olmayan hedefler yapay değişkenlerle doğrusallaştırılmıştır:")
 
     seq1_col, seq2_col = st.columns(2)
 
     with seq1_col:
-        st.markdown("**6. Gece Nöbeti Adil Dağılım Doğrusallaştırması (Yumuşak Kısıt 8):**")
-        st.caption("Hedef ortalama gece nöbeti sayısından (y_hedef) sapmalar pozitif/negatif değişkenlerle yakalanır:")
-        st.latex(r"\sum_{t \in T} x_{i,t,3} - \bar{y}^N = d_i^+ - d_i^-, \quad d_i^+, d_i^- \ge 0, \quad \forall i \in I")
+        st.markdown("**6. Posta Takım Bütünlüğü Doğrusallaştırması (Yumuşak Kısıt 6):**")
+        st.caption("Aynı postadaki çalışanların ana çoğunluktan ayrılması (sapması) değişkenlerle yakalanır:")
+        st.latex(r"\text{posta\_dev}_{p,t} \ge \sum_{i \in I_p, k \ne k_{\text{maj}}} x_{i,t,k}, \quad \text{posta\_dev}_{p,t} \ge 0")
 
-        st.markdown("**7. Sirkadiyen Ritim İleri Yönlü Geçiş (Yumuşak Kısıt 9):**")
-        st.caption("Akşam vardiyasından (k=2) ertesi gün sabah vardiyasına (k=1) ters geçiş cezalandırılır:")
-        st.latex(r"s_{i,t}^{\text{sirk}} \ge x_{i,t,2} + x_{i,t+1,1} - 1, \quad s_{i,t}^{\text{sirk}} \ge 0")
-
-    with seq2_col:
-        st.markdown("**8. Kıdemli Usta / Tecrübe Güvencesi (Yumuşak Kısıt 7):**")
+        st.markdown("**7. Usta - Çırak / Kıdemli Usta Varlığı (Yumuşak Kısıt 7):**")
         st.caption("Vardiyada görevli personeller arasında kıdemli usta yoksa no_usta değişkeni 1 olur:")
         st.latex(r"\text{no\_usta}_{t,k} \ge 1 - \sum_{i \in I_{\text{usta}}} x_{i,t,k}, \quad \text{no\_usta}_{t,k} \in \{0, 1\}")
 
-        st.markdown("**9. Kişisel İzin Taleplerinin Karşılanması (Yumuşak Kısıt 10):**")
+        st.markdown("**8. Gece Nöbeti Adil Dağılım Doğrusallaştırması (Yumuşak Kısıt 8):**")
+        st.caption("Hedef ortalama gece nöbeti sayısından (y_hedef) sapmalar pozitif/negatif değişkenlerle yakalanır:")
+        st.latex(r"\sum_{t \in T} x_{i,t,3} - \bar{y}^N = d_i^+ - d_i^-, \quad d_i^+, d_i^- \ge 0, \quad \forall i \in I")
+
+    with seq2_col:
+        st.markdown("**9. Sirkadiyen Ritim İleri Yönlü Geçiş (Yumuşak Kısıt 9):**")
+        st.caption("Akşam vardiyasından (k=2) ertesi gün sabah vardiyasına (k=1) ters geçiş cezalandırılır:")
+        st.latex(r"s_{i,t}^{\text{sirk}} \ge x_{i,t,2} + x_{i,t+1,1} - 1, \quad s_{i,t}^{\text{sirk}} \ge 0")
+
+        st.markdown("**10. Kişisel İzin Taleplerinin Karşılanması (Yumuşak Kısıt 10):**")
         st.caption("İşçinin talep ettiği izin gününde (p_i) çalışması (x ≠ 0) halinde ceza tetiklenir:")
         st.latex(r"\text{pref\_viol}_i \ge 1 - x_{i, p_i, 0}, \quad \text{pref\_viol}_i \in \{0, 1\}")
 

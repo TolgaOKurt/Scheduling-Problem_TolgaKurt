@@ -156,7 +156,7 @@ def solve_cp_sat(
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
+    w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
     penalty_terms = []
@@ -276,7 +276,7 @@ def solve_cp_sat(
             'Posta Takım Bütünlüğü İhlali': 0,
             'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
             'Gece Nöbeti Dengesizliği': 0,
-            'Kıdem & MYK Sertifika Eksikliği': 0,
+            'Kıdem / Usta Eksikliği': 0,
             'Kişisel İzin İhlali': 0
         }
         final_score = 99999

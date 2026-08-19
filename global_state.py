@@ -30,7 +30,7 @@ GLOBAL_DEFAULTS = {
     'penalties': {
         'circadian': 50,
         'night_imb': 25,
-        'exp_mix': 30,
+        'exp_mix': 60,
         'pref_off': 40,
         'posta': 15
     },
@@ -200,7 +200,70 @@ def render_global_config_tab():
 
     st.divider()
 
-    # 2. SATIR: 3 KOLONLU PARAMETRE DÜZENLEME PANELİ
+    # HIZLI ÇELİK TESİSİ & VARDİYA ÖN AYARLARI (PRESETS)
+    st.markdown("### 🎛️ Çelik Sanayisi Hızlı Tesis & Vardiya Ön Ayarları (Presets)")
+    st.markdown("""
+    <div style="font-size: 0.92rem; color: #334155; margin-bottom: 12px;">
+        Tek tıkla fabrikanın operasyonel büyüklüğüne göre <b>Gündüz, Akşam, Gece vardiya ihtiyaçlarını</b> ve <b>4-Posta kuralına (<i>N = ⁴⁄₃ × Günlük İhtiyaç</i>)</b> uygun gerekli <b>Toplam Personel Sayısını (N)</b> otomatik ayarlar:
+    </div>
+    """, unsafe_allow_html=True)
+
+    def set_shift_preset(n_w, r_d, r_e, r_n):
+        _init_persistent_config()
+        cfg_target = st.session_state["persistent_global_config"]
+        cfg_target['n_workers'] = n_w
+        cfg_target['r_day'] = r_d
+        cfg_target['r_eve'] = r_e
+        cfg_target['r_night'] = r_n
+        st.session_state["ui_cfg_n"] = n_w
+        st.session_state["ui_cfg_rd"] = r_d
+        st.session_state["ui_cfg_re"] = r_e
+        st.session_state["ui_cfg_rn"] = r_n
+        
+        fresh_workers = generate_worker_profiles(
+            n_w,
+            cfg_target['n_days'],
+            randomize=("Rastgele" in cfg_target['kadro_mode']),
+            seed=cfg_target['rand_seed']
+        )
+        cfg_target['custom_workers'] = fresh_workers
+        cfg_target['_last_kadro_sig'] = (
+            n_w,
+            cfg_target['n_days'],
+            cfg_target['kadro_mode'],
+            cfg_target['rand_seed']
+        )
+        cfg_target['editor_version'] = cfg_target.get('editor_version', 0) + 1
+
+    pr1, pr2, pr3, pr4, pr5, pr6 = st.columns(6)
+    with pr1:
+        if st.button("🏭 Standart Çelikhane\n\n9-7-5 | N:28", width="stretch", key="btn_pr_std", help="Standart 1 Yüksek Fırın + 1 Sürekli Döküm Hattı (Günlük: 21 kişi / Kadro: 28)"):
+            set_shift_preset(28, 9, 7, 5)
+            st.rerun()
+    with pr2:
+        if st.button("⚡ Kompakt Haddehane\n\n6-5-4 | N:20", width="stretch", key="btn_pr_compact", help="Küçük ark ocağı veya bağımsız haddehane (Günlük: 15 kişi / Kadro: 20)"):
+            set_shift_preset(20, 6, 5, 4)
+            st.rerun()
+    with pr3:
+        if st.button("🔥 Çift Döküm Hattı\n\n11-9-7 | N:36", width="stretch", key="btn_pr_dual", help="2 Sürekli Döküm Makinesi + Pota Ocağı (Günlük: 27 kişi / Kadro: 36)"):
+            set_shift_preset(36, 11, 9, 7)
+            st.rerun()
+    with pr4:
+        if st.button("🏗️ Çoklu Döküm Tesisi\n\n15-12-9 | N:48", width="stretch", key="btn_pr_mega", help="Büyük Çelikhane & Çoklu Hat Kompleksi (Günlük: 36 kişi / Kadro: 48)"):
+            set_shift_preset(48, 15, 12, 9)
+            st.rerun()
+    with pr5:
+        if st.button("⚖️ Kok & Gaz Arıtma\n\n6-6-6 | N:24", width="stretch", key="btn_pr_coke", help="7/24 Kesintisiz Kimyasal Proses (Günlük: 18 kişi / Kadro: 24)"):
+            set_shift_preset(24, 6, 6, 6)
+            st.rerun()
+    with pr6:
+        if st.button("🛠️ Fırın Uyutma / Bakım\n\n4-4-4 | N:16", width="stretch", key="btn_pr_banking", help="Planlı Duruş / 4 MYK Zorunlu Asgari Kadro (Günlük: 12 kişi / Kadro: 16)"):
+            set_shift_preset(16, 4, 4, 4)
+            st.rerun()
+
+    st.divider()
+
+    # 3. SATIR: 3 KOLONLU PARAMETRE DÜZENLEME PANELİ
     col1, col2, col3 = st.columns(3)
 
     with col1:

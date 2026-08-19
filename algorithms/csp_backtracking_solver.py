@@ -22,7 +22,7 @@ class CSPBacktrackingSolver:
         self.n_days = n_days
         self.shift_reqs = {1: r_day, 2: r_eve, 3: r_night}
         self.max_backtracks = max_backtracks
-        self.weights = weights if weights is not None else {'posta': 15, 'circadian': 50, 'pref_off': 40, 'night_imb': 25, 'exp_mix': 30}
+        self.weights = weights if weights is not None else {'posta': 15, 'circadian': 50, 'pref_off': 40, 'night_imb': 25, 'exp_mix': 60}
         
         self.backtrack_count = 0
         self.nodes_explored = 0

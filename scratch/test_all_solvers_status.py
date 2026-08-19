@@ -16,7 +16,7 @@ from algorithms.pso_solver import run_particle_swarm_optimization
 from algorithms.aco_solver import run_ant_colony_optimization
 
 n_workers, n_days, r_day, r_eve, r_night = 28, 7, 9, 7, 5
-weights = {'circadian': 50, 'night_imb': 25, 'exp_mix': 30, 'pref_off': 40, 'posta': 15}
+weights = {'circadian': 50, 'night_imb': 25, 'exp_mix': 60, 'pref_off': 40, 'posta': 15}
 workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
 solvers = [
@@ -44,7 +44,7 @@ for name, fn in solvers:
     p_posta = p.get("Posta Takım Bütünlüğü İhlali", 0)
     p_circ = p.get("Sirkadiyen Ritim İhlali (Akşam->Gündüz)", 0)
     p_night = p.get("Gece Nöbeti Dengesizliği", 0)
-    p_exp = p.get("Kıdem & MYK Sertifika Eksikliği", 0)
+    p_exp = p.get("Kıdem / Usta Eksikliği", 0)
     p_pref = p.get("Kişisel İzin İhlali", 0)
     print(f"{name:<25} | {is_feas:<8} | {viols:>5} | {score:>8} | {p_posta:>6} | {p_circ:>7} | {p_night:>5} | {p_exp:>5} | {p_pref:>5}")
 

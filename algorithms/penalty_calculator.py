@@ -25,7 +25,7 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night_imb = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
+    w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
     # 1. Posta Takım Bütünlüğü Kontrolü (A, B, C, D postalarının aynı vardiyada kalması)
@@ -65,7 +65,7 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     pref_viols = int(np.sum(schedule[pref_rows, pref_cols] != 0))
     pref_pen = int(pref_viols * w_pref)
 
-    # 5. Kıdem & MYK Sertifika Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
+    # 5. Kıdem / Usta Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
     usta_set = {w['id'] for w in workers if w.get('is_usta', False)}
     exp_pen = 0
     for t in range(n_days):
@@ -79,7 +79,7 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
         'Posta Takım Bütünlüğü İhlali': posta_pen,
         'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': circ_pen,
         'Gece Nöbeti Dengesizliği': night_pen,
-        'Kıdem & MYK Sertifika Eksikliği': exp_pen,
+        'Kıdem / Usta Eksikliği': exp_pen,
         'Kişisel İzin İhlali': pref_pen
     }
     total_score = posta_pen + circ_pen + night_pen + exp_pen + pref_pen
@@ -98,7 +98,7 @@ def build_fast_evaluator(workers, n_days, weights):
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night_imb = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
+    w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
     is_usta_arr = np.array([w.get('is_usta', False) for w in workers])

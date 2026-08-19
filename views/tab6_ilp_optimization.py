@@ -88,7 +88,7 @@ def render_tab6(params):
     w_circ = params['weights'].get('circadian', 50)
     w_pref = params['weights'].get('pref_off', 40)
     w_posta = params['weights'].get('posta', 35)
-    w_exp = params['weights'].get('exp_mix', 30)
+    w_exp = params['weights'].get('exp_mix', 60)
     w_night = params['weights'].get('night_imb', 25)
 
     st.markdown(rf"""

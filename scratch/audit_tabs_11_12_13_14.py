@@ -23,7 +23,7 @@ r_night = 5
 weights = {
     'circadian': 50,
     'night_imb': 25,
-    'exp_mix': 30,
+    'exp_mix': 60,
     'pref_off': 40,
     'posta': 15
 }
@@ -42,7 +42,7 @@ CANONICAL_5_PENALTY_KEYS = [
     'Posta Takım Bütünlüğü İhlali',
     'Sirkadiyen Ritim İhlali (Akşam->Gündüz)',
     'Gece Nöbeti Dengesizliği',
-    'Kıdem & MYK Sertifika Eksikliği',
+    'Kıdem / Usta Eksikliği',
     'Kişisel İzin İhlali'
 ]
 

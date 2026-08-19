@@ -32,7 +32,7 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
     """
     workers = custom_workers if custom_workers is not None else (workers if workers is not None else generate_worker_profiles(n_workers, n_days, randomize=False))
     w_night = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
+    w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
@@ -170,7 +170,7 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
 
     breakdown = {
         'Gece Nöbeti Dengesizliği': c_night,
-        'Kıdem & MYK Sertifika Eksikliği': c_exp,
+        'Kıdem / Usta Eksikliği': c_exp,
         'Kişisel İzin İhlali': c_pref,
         'Posta Takım Bütünlüğü İhlali': c_posta,
         'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': c_circ
@@ -386,7 +386,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     w_circ = weights.get('circadian', 50)
     w_pref = weights.get('pref_off', 40)
     w_night_imb = weights.get('night_imb', 25)
-    w_exp = weights.get('exp_mix', 30)
+    w_exp = weights.get('exp_mix', 60)
     
     total_penalty_expr = (
         w_circ * pulp.lpSum([sirk[i, t] for i in range(n_workers) for t in range(n_days - 1)]) +
@@ -465,7 +465,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             'Posta Takım Bütünlüğü İhlali': 0,
             'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
             'Gece Nöbeti Dengesizliği': 0,
-            'Kıdem & MYK Sertifika Eksikliği': 0,
+            'Kıdem / Usta Eksikliği': 0,
             'Kişisel İzin İhlali': 0
         }
         total_penalty = 99999

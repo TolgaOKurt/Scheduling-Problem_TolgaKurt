@@ -910,6 +910,69 @@ def render_tab_comparison(params):
     st.divider()
 
     # ==============================================================================
+    # BÖLÜM 3.1: ALGORİTMALARIN ÇIKIŞ KÖKENİ, BAŞARI ALANLARI & ÇELİK NSP ZORLANMA ANALİZİ
+    # ==============================================================================
+    st.markdown("### 📚 Bölüm 3.1: Algoritmaların Çıkış Kökeni, Başarı Alanları & Çelik NSP Başarısızlık/Zorlanma Nedenleri")
+    st.markdown("""
+    Her optimizasyon algoritması belirli bir problem sınıfı için icat edilmiştir. Bir algoritmanın genel bir benchmark probleminde çok başarılı olması, 
+    **Ağır Sanayi Çizelgeleme Problemi (NSP)** gibi sıkı sert kısıtlarla ve ayrık matris yapısıyla boğulmuş bir alanda da başarılı olacağı anlamına gelmez:
+    """)
+
+    df_origin_analysis = pd.DataFrame({
+        "Algoritma": [
+            "🧬 Genetic Algorithm (GA)",
+            "🐝 Discrete PSO",
+            "🐜 Ant Colony (ACO)",
+            "🔥 Simulated Annealing (SA)",
+            "🏔️ Hill Climbing (HC)",
+            "🏆 Memetic Algorithm (MA)",
+            "🤫 Tabu Search (TS)",
+            "🔄 VNS (Değişken Komşuluk)",
+            "🎯 ILP / MILP (PuLP CBC)",
+            "⚡ Google CP-SAT (OR-Tools)"
+        ],
+        "Asıl Tasarım Amacı & İlham Kaynağı": [
+            "Biyolojik evrim, doğal seçilim ve genetik rekombinasyon (Holland, 1975).",
+            "Kuş ve balık sürülerinin sürekli uzaydaki fiziksel uçuş dinamikleri (Kennedy & Eberhart, 1995).",
+            "Karıncaların yiyecek ararken patikalara feromon bırakma mantığı (Dorigo, 1992).",
+            "Sıcak metallerin yavaşça soğutularak kristalize edilmesi (Kirkpatrick, 1983).",
+            "Yerel gradyan ve tepe tırmanma yöresel araması.",
+            "Küresel evrim ile yerel kültürel öğrenmenin / lokal tamirin birleşimi (Moscato, 1989).",
+            "İnsan hafızası ve yasaklı hamle listesi ile döngüsüz vadi aşımı (Glover, 1986).",
+            "Farklı ölçekteki komşuluk yapılarının sistematik değişimi (Mladenović & Hansen, 1997).",
+            "Doğrusal kısıtlı tamsayılı kaynak tahsisi ve Dal-Sınır ağacı (Dantzig, 1947; Land & Doig, 1960).",
+            "Boolean Sağlanabilirlik (SAT), Lazy Clause Generation ve Kısıt Yayılımı (Google OR-Tools)."
+        ],
+        "En Başarılı Olduğu Tipik Alanlar": [
+            "Sırt Çantası (Knapsack), Özellik Seçimi (Feature Selection), Bağımsız Küme Problemleri.",
+            "Sürekli Fonksiyon Optimizasyonu (x ∈ ℝⁿ), Yapay Sinir Ağı Ağırlık Eğitimi, Mühendislik Tasarımı.",
+            "Gezgin Satıcı (TSP), Araç Rotalama (VRP), Şebeke / Ağ En Kısa Yol Problemleri.",
+            "VLSI Çip Yerleşimi (Floorplanning), Düşük Boyutlu Sürekli Enerji Minimizasyonu.",
+            "Tek tepeli (Unimodal) dışbükey problemler, Hızlı başlangıç iyileştirmesi.",
+            "Karmaşık Kombinatoryal Çizelgeleme, Sıralama ve Atama Problemleri.",
+            "İş Çizelgeleme (Job Shop), Araç Rotalama, Kısıtlı Ayrık Kombinatoryal Problemler.",
+            "Konum Belirleme (Facility Location), Araç Filosu Rotalama, Vardiya Çizelgeleme.",
+            "Üretim Planlama, Portföy Optimizasyonu, Orta Boyutlu Doğrusal Karar Modelleri.",
+            "Vardiya Çizelgeleme (NSP), Zaman Çizelgeleme (Timetabling), Karmaşık Mantıksal Lojistik."
+        ],
+        "Bizim Projemizde (Çelik Sanayi NSP) Neden Zorlanır / Başarısız Olur?": [
+            "✂️ Çaprazlama Tahribatı (Dikiş Hatası): İki iyi çizelgeyi gün ortasından kestiğinde sirkadiyen ritim ve 11h dinlenme zinciri parçalanır. Zamanının çoğunu bu dikiş hasarını tamir etmeye harcar.",
+            "🧩 Ayrık Matris Uyumsuzluğu: 48 × 7 boyutlu ayrık bir vardiya matrisinde hız ve momentum vektörleri anlamsızlaşır. Hız yuvarlamaları sert kısıtları bozar.",
+            "🕸️ Çizge (Graph) Eksikliği: ACO nokta-nokta şehir gezilerinde harikadır; fakat 4-Posta takım kısıtları ve çoklu MYK ehliyetleri gibi matris kural ağlarında feromonlar yerel çukurlara hapsolur.",
+            "⏱️ Kör Stokastik Takas: Rastgele tekil takaslar yaptığı için büyük boyutlarda (10²⁰² uzay) soğuma eğrisi hızlıysa erken kilitlenir, yavaşsa süresi yetmez.",
+            "🕳️ Yerel Çukur Tuzağı: Kötüleşen hiçbir hamleyi kabul etmediği için ilk girdiği yerel minimumda kesin olarak kilitlenip durur.",
+            "🟢 BAŞARILIDIR: GA'nın çaprazlama tahribatını arkasından gelen lokal tamirci (HC) anında onardığı için Saf GA'yı 800+ puan geride bırakır.",
+            "🟢 ÇOK BAŞARILIDIR: Matrisi bölmez, sert kısıt korumalı 2'li takaslar yapar ve Tabu Listesi sayesinde döngüye girmeden arama uzayını hızla tarar (13.000+ hamle).",
+            "🟢 ÇOK BAŞARILIDIR: Yerel çukura takıldığında N1 (2 işçi) → N2 (2 gün) → N3 (tüm posta) komşuluklarına sıçrayarak çukurdan kurtulur.",
+            "⏱️ Boyut Yavaşlaması: N > 40 olduğunda Dal-Sınır ağacı şişer ve 10 saniyede tam kanıta ulaşamayabilir (Zaman sınırı).",
+            "🏆 EN BAŞARILISIDIR: Mantıksal kısıtları (AND, OR, IF) donanımsal Boolean önermeleri olarak anlar, arama ağacının %90'ını baştan budar ve alt sınırı kanıtlar."
+        ]
+    })
+    st.dataframe(df_origin_analysis, width="stretch", hide_index=True)
+
+    st.divider()
+
+    # ==============================================================================
     # BÖLÜM 4: ÇÖZÜCÜ KARŞILAŞTIRMALI VARDİYA & İZİN MUTABAKATI (CONSENSUS & ALIGNMENT)
     # ==============================================================================
     st.markdown("### 🔬 Bölüm 4: Çözücü Karşılaştırmalı Vardiya & İzin Mutabakatı (Schedule Alignment & Consensus Matrix)")
