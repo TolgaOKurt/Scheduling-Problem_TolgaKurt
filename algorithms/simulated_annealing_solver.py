@@ -19,10 +19,10 @@ from algorithms.solver_contract import build_standard_solver_result
 
 def run_simulated_annealing(n_workers, n_days, r_day, r_eve, r_night, weights, 
                             t_start=1000.0, t_min=0.01, cooling_rate=0.980, max_iterations=3000, 
-                            seed=42, custom_workers=None, callback=None, stream_interval=50):
+                            seed=42, custom_workers=None, callback=None, stream_interval=50, time_limit=None):
     """
     Simulated Annealing (Tavlama Benzetimi) Vardiya Optimizasyonu.
-    Sonlandırma nedeni (termination_reason) ve canlı izleme callback desteği.
+    Sonlandırma nedeni (termination_reason), süre bütçesi (time_limit) ve canlı izleme callback desteği.
     """
     start_time = time.time()
     random.seed(seed)
@@ -77,7 +77,11 @@ def run_simulated_annealing(n_workers, n_days, r_day, r_eve, r_night, weights,
     # =========================================================================
     # 4. METROPOLIS TAVLAMA VE KOMŞULUK DÖNGÜSÜ (SIMULATED ANNEALING LOOP)
     # =========================================================================
-    while k < max_iterations and T > t_min:
+    effective_max_k = 1000000 if time_limit else max_iterations
+    while k < effective_max_k and T > t_min:
+        if time_limit and (time.time() - start_time) >= time_limit:
+            termination_reason = f"Maksimum Süre Sınırına Ulaşıldı ({time_limit}s)"
+            break
         # ---------------------------------------------------------------------
         # 4.1 KOMŞULUK OPERATÖRÜ (NEIGHBORHOOD MOVE: RANDOM 2-WORKER DAY-SWAP)
         # ---------------------------------------------------------------------

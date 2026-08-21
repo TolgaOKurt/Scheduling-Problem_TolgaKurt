@@ -17,11 +17,12 @@ from algorithms.penalty_calculator import calculate_full_penalties, build_worker
 from algorithms.solver_contract import build_standard_solver_result
 
 class CSPBacktrackingSolver:
-    def __init__(self, n_workers, n_days, r_day, r_eve, r_night, max_backtracks=3000, custom_workers=None, weights=None):
+    def __init__(self, n_workers, n_days, r_day, r_eve, r_night, max_backtracks=3000, custom_workers=None, weights=None, timeout_sec=5.0):
         self.n_workers = n_workers
         self.n_days = n_days
         self.shift_reqs = {1: r_day, 2: r_eve, 3: r_night}
         self.max_backtracks = max_backtracks
+        self.timeout_sec = timeout_sec
         self.weights = weights if weights is not None else {'posta': 15, 'circadian': 50, 'pref_off': 40, 'night_imb': 25, 'exp_mix': 60}
         
         self.backtrack_count = 0
@@ -198,7 +199,11 @@ class CSPBacktrackingSolver:
     # 4. ÖZYİNELEMELİ GERİ İZLEME MOTORU (RECURSIVE BACKTRACKING & PRUNING)
     # =========================================================================
     def _backtrack(self, day, shift_idx, callback=None, stream_interval=50):
-        # Durdurma Kriteri 1: Maksimum Geri İzleme Sınırı
+        # Durdurma Kriteri 1: Maksimum Süre Sınırı
+        if self.timeout_sec and (time.time() - self.start_time) >= self.timeout_sec:
+            return False
+
+        # Durdurma Kriteri 2: Maksimum Geri İzleme Sınırı
         if self.backtrack_count >= self.max_backtracks:
             return False
             

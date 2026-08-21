@@ -28,7 +28,7 @@ from algorithms.solver_contract import finalize_solver_execution
 def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
                     max_iterations=1000, tabu_tenure=15, neighborhood_size=20,
                     use_aspiration=True, use_diversification=False,
-                    seed=42, custom_workers=None, callback=None, stream_interval=20):
+                    seed=42, custom_workers=None, callback=None, stream_interval=20, time_limit=None):
     """
     Yüksek Performanslı Tabu Search (Tabu Araması) Optimizasyon Motoru.
     """
@@ -110,13 +110,11 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
         return True
 
     # =========================================================================
-    # 3. TABU HAFIZA YAPILARI (SHORT & LONG TERM MEMORY STRUCTURES)
+    # 3. TABU BELLEĞİ VE PARAMETRELERİ (SHORT & LONG TERM MEMORY STRUCTURES)
     # =========================================================================
-    # Kısa Vadeli Hafıza: İşçi ve gün bazında hamlenin yasaklı kalacağı iterasyon damgası
     tabu_matrix = np.zeros((n_workers, n_days), dtype=int)
-    # Uzun Vadeli Hafıza: Hangi işçinin hangi günde hangi vardiyaya kaç kez atandığı (Frekans Matrisi)
     frequency_matrix = np.zeros((n_workers, n_days, 4), dtype=int)
-
+    
     best_score_history = []
     curr_score_history = []
     tabu_size_history = []
@@ -130,7 +128,12 @@ def run_tabu_search(n_workers, n_days, r_day, r_eve, r_night, weights,
     # =========================================================================
     # 4. TABU SEARCH ANA İTERASYON DÖNGÜSÜ (MAIN TABU LOOP)
     # =========================================================================
-    for it in range(max_iterations):
+    effective_max_iters = 1000000 if time_limit else max_iterations
+    for it in range(effective_max_iters):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            termination_reason = f"Maksimum Süre Sınırına Ulaşıldı ({time_limit}s)"
+            break
+
         # Uzun vadeli frekans kaydı
         if use_diversification:
             for w in range(n_workers):

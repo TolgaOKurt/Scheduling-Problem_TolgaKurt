@@ -16,41 +16,32 @@ import numpy as np
 import plotly.express as px
 
 
-# 1. ÖN-ANALİZ MALİYET & TAHMİNİ SÜRE ROZETİ (BADGE)
-def render_evaluator_cost_badge(calls, call_cost_ms, label="Tahmini Ceza Değerlendirme"):
+# 1. ÖN-ANALİZ CEZA ÇAĞRISI TAHMİN ROZETİ (BADGE)
+def render_evaluator_cost_badge(calls, call_cost_ms=None, label="Tahmini Ceza Değerlendirme"):
     """
-    Şık ve modern bir rozet (Badge Pill) ile tahmini ceza çağrısını,
-    birim maliyet formülünü ve tahmini CPU süresini gösterir.
+    Kompakt ve sade bir gösterge ile tahmini ceza değerlendirici çağrı sayısını gösterir.
     """
-    total_ms = calls * call_cost_ms
-    time_str = f"{total_ms/1000:.2f} sn" if total_ms >= 1000 else (f"{total_ms:.1f} ms" if total_ms >= 1 else f"{total_ms:.2f} ms")
-    
     st.markdown(f"""
-    <div class="metric-card" style="padding: 12px 14px; margin-bottom: 8px;">
-        <div class="metric-label">{label}</div>
-        <div style="display: flex; align-items: baseline; justify-content: space-between; flex-wrap: wrap; margin-top: 4px; gap: 6px;">
-            <span class="metric-value" style="color: #1e293b; font-size: 1.35rem;">~{calls:,} <span style="font-size: 0.85rem; font-weight: 500; color: #64748b;">Çağrı</span></span>
-            <span style="background: linear-gradient(135deg, #e0f2fe 0%, #dbeafe 100%); color: #0369a1; border: 1px solid #bae6fd; font-weight: 700; font-size: 0.82rem; padding: 3px 8px; border-radius: 16px; display: inline-flex; align-items: center; gap: 4px; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
-                ⏱️ ~{time_str}
-            </span>
-        </div>
-        <div style="font-size: 0.76rem; color: #64748b; margin-top: 5px;">
-            🧮 <code>{call_cost_ms:.3f} ms</code> &times; <code>{calls:,}</code> = <b>{time_str}</b> (Saf CPU)
+    <div class="metric-card" style="padding: 8px 12px; margin-bottom: 6px;">
+        <div class="metric-label" style="font-size: 0.80rem; color: #64748b; margin-bottom: 2px;">{label}</div>
+        <div>
+            <span class="metric-value" style="color: #1e293b; font-size: 1.25rem; font-weight: 700;">~{calls:,}</span>
+            <span style="font-size: 0.82rem; color: #64748b; font-weight: 500; margin-left: 3px;">Çağrı</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
 
-def render_preanalysis_prediction_card(title, calls, call_cost_ms, desc_items=None):
+def render_preanalysis_prediction_card(title, calls, call_cost_ms=None, desc_items=None):
     """
     Algoritmaların çalıştırma butonunun hemen üstünde yer alan
-    tahmini ceza değerlendirme çağrısı ve birim maliyet çarpım panosu.
+    tahmini ceza değerlendirme çağrısı panosu.
     """
     st.markdown(f"#### 🔍 {title}")
     
     m_col1, m_col2 = st.columns([1, 2])
     with m_col1:
-        render_evaluator_cost_badge(calls, call_cost_ms, label="Tahmini Ceza Değerlendirme")
+        render_evaluator_cost_badge(calls, label="Tahmini Ceza Değerlendirme")
     with m_col2:
         if desc_items:
             bullets = "".join([f"<li>{item}</li>" for item in desc_items])

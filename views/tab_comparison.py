@@ -41,17 +41,48 @@ def render_tab_comparison(params):
     # --- CANLI BENCHMARK ÇALIŞTIRMA BUTONU ---
     st.markdown("### 🚀 Canlı Benchmark & Karşılaştırma Merkezi")
     
-    b_col1, b_col2 = st.columns([3, 1])
-    with b_col1:
-        st.info("💡 **İpucu:** Algoritmaları kendi sekmelerinde çalıştırdıysanız sonuçları doğrudan aşağıda görebilirsiniz. Dilerseniz aşağıdaki buton ile **tüm çözücüleri tek tıkla standart ayarlarda sırayla çalıştırıp** canlı olarak kıyaslayabilirsiniz.")
-    with b_col2:
-        run_all_btn = st.button("⚡ Tüm Çözücüleri Çalıştır (Benchmark)", type="primary", width="stretch", key="btn_run_all_bench")
+    b_card1, b_card2 = st.columns([1, 1])
 
-    if run_all_btn:
-        progress_bar = st.progress(0, text="Benchmark başlatılıyor...")
+    with b_card1:
+        st.markdown("""
+        <div style="background-color: #f8fafc; border: 1.5px solid #cbd5e1; border-radius: 8px; padding: 14px; height: 100%;">
+            <div style="font-weight: 700; color: #1e293b; font-size: 0.95rem; margin-bottom: 4px;">⚡ 1. Mod: Standart İterasyon Benchmarkı</div>
+            <p style="font-size: 0.84rem; color: #475569; margin-bottom: 12px;">
+                Tüm çözücüleri literatürde belirlenmiş standart iterasyon / nesil limitleriyle (HC 3000, Tabu 750, GA 80 nesil vb.) hızlıca çalıştırır.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        run_all_btn = st.button("⚡ Standart Benchmarkı Başlat", type="secondary", width="stretch", key="btn_run_all_bench")
+
+    with b_card2:
+        st.markdown("""
+        <div style="background-color: #eff6ff; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 14px; height: 100%;">
+            <div style="font-weight: 700; color: #1d4ed8; font-size: 0.95rem; margin-bottom: 4px;">⏱️ 2. Mod: Eşit Zaman Sınırı Yarışı (Time-Capped Shootout)</div>
+            <p style="font-size: 0.84rem; color: #1e40af; margin-bottom: 6px;">
+                Tüm algoritmalar <b>birebir aynı maksimum süre bütçesi</b> boyunca çalışır. Süre dolduğunda hangi yöntemin en kaliteli çözümü bulduğu test edilir.
+            </p>
+        </div>
+        """, unsafe_allow_html=True)
+        time_budget_sec = st.slider(
+            "⏱️ Çözücü Başına Maksimum Zaman Sınırı (Saniye):",
+            min_value=0.5,
+            max_value=30.0,
+            value=3.0,
+            step=0.5,
+            format="%.1f sn",
+            key="bench_time_budget_slider"
+        )
+        run_time_capped_btn = st.button(f"⏱️ Eşit Süreyle Benchmark Başlat ({time_budget_sec:.1f} sn / Çözücü)", type="primary", width="stretch", key="btn_run_time_capped_bench")
+
+    if run_all_btn or run_time_capped_btn:
+        is_capped = bool(run_time_capped_btn)
+        t_limit = time_budget_sec if is_capped else None
+        mode_label = f"Eşit {time_budget_sec:.1f} sn Zaman Sınırı" if is_capped else "Standart İterasyon"
+
+        progress_bar = st.progress(0, text=f"Benchmark başlatılıyor ({mode_label})...")
         
         # 1. Greedy 1: Sıralı / Miyopik
-        progress_bar.progress(7, text="1/13: Greedy (1. Sıralı / Miyopik) çalıştırılıyor...")
+        progress_bar.progress(7, text=f"1/14: Greedy (1. Sıralı / Miyopik) çalıştırılıyor...")
         res_g1 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)", custom_workers=custom_workers
@@ -59,7 +90,7 @@ def render_tab_comparison(params):
         st.session_state["res_t4_myopic"] = res_g1
 
         # 2. Greedy 2: Kademeli / Desen Tabanlı
-        progress_bar.progress(15, text="2/13: Greedy (2. Kademeli Desen) çalıştırılıyor...")
+        progress_bar.progress(14, text=f"2/14: Greedy (2. Kademeli Desen) çalıştırılıyor...")
         res_g2 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)", custom_workers=custom_workers
@@ -68,7 +99,7 @@ def render_tab_comparison(params):
         st.session_state["res_t4"] = res_g2
 
         # 3. Greedy 3: Kısıt Öncelikli (MRV / LCV)
-        progress_bar.progress(23, text="3/13: Greedy (3. Kısıt Öncelikli MRV/LCV) çalıştırılıyor...")
+        progress_bar.progress(21, text=f"3/14: Greedy (3. Kısıt Öncelikli MRV/LCV) çalıştırılıyor...")
         res_g3 = run_greedy_algorithm(
             num_workers, num_days, req_day, req_eve, req_night, weights,
             solver_mode="3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)", custom_workers=custom_workers
@@ -76,8 +107,8 @@ def render_tab_comparison(params):
         st.session_state["res_t4_mrv"] = res_g3
 
         # 4. CSP Backtracking
-        progress_bar.progress(31, text="4/13: CSP Backtracking çalıştırılıyor...")
-        csp_mb = max(st.session_state.get('csp_mb', 3000), 10000)
+        progress_bar.progress(28, text=f"4/14: CSP Backtracking çalıştırılıyor...")
+        csp_mb = max(st.session_state.get('csp_mb', 3000), 50000 if is_capped else 10000)
         csp_solver = CSPBacktrackingSolver(
             n_workers=num_workers,
             n_days=num_days,
@@ -86,62 +117,124 @@ def render_tab_comparison(params):
             r_night=req_night,
             max_backtracks=csp_mb,
             custom_workers=custom_workers,
-            weights=weights
+            weights=weights,
+            timeout_sec=t_limit if is_capped else 5.0
         )
         res_t5 = csp_solver.solve()
         st.session_state["res_t5"] = res_t5
 
         # 5. ILP
-        progress_bar.progress(38, text="5/13: ILP / MILP Optimizasyonu çözülüyor...")
-        res_t6 = solve_ilp_pulp(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=10, custom_workers=custom_workers)
+        progress_bar.progress(35, text=f"5/14: ILP / MILP Optimizasyonu çözülüyor...")
+        res_t6 = solve_ilp_pulp(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=t_limit if is_capped else 10, custom_workers=custom_workers)
         st.session_state["res_t6"] = res_t6
 
         # 6. Hill Climbing
-        progress_bar.progress(46, text="6/13: Hill Climbing Yerel Araması çalıştırılıyor...")
-        res_t7 = run_hill_climbing(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=3000, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(42, text=f"6/14: Hill Climbing Yerel Araması çalıştırılıyor ({'Genişletilmiş Yoğun Arama' if is_capped else '7.500 İterasyon'})...")
+        res_t7 = run_hill_climbing(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            max_iterations=250000 if is_capped else 7500,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t7"] = res_t7
 
         # 7. Simulated Annealing
-        progress_bar.progress(54, text="7/13: Simulated Annealing Tavlama çalıştırılıyor...")
-        res_t8 = run_simulated_annealing(num_workers, num_days, req_day, req_eve, req_night, weights, t_start=1000.0, t_min=0.01, cooling_rate=0.990, max_iterations=3000, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(49, text=f"7/14: Simulated Annealing Tavlama çalıştırılıyor ({'Yavaş Soğutma & Derin Arama' if is_capped else 'Standart'})...")
+        res_t8 = run_simulated_annealing(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            t_start=5000.0 if is_capped else 5000.0,
+            t_min=0.001 if is_capped else 0.004,
+            cooling_rate=0.9992 if is_capped else 0.998,
+            max_iterations=31000 if is_capped else 31000,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t8"] = res_t8
 
         # 8. Genetic Algorithm
-        progress_bar.progress(62, text="8/13: Genetik Algoritma Popülasyonu evrimleştiriliyor...")
-        res_t9 = run_genetic_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, pop_size=50, generations=80, crossover_rate=0.85, mutation_rate=0.05, elitism_count=2, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(56, text=f"8/14: Genetik Algoritma Popülasyonu evrimleştiriliyor ({'Büyük Popülasyon (100) & Çoklu Nesil' if is_capped else 'Standart'})...")
+        res_t9 = run_genetic_algorithm(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            pop_size=100 if is_capped else 50,
+            generations=800 if is_capped else 80,
+            crossover_rate=0.90 if is_capped else 0.85,
+            mutation_rate=0.08 if is_capped else 0.05,
+            elitism_count=4 if is_capped else 2,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t9"] = res_t9
 
         # 9. Memetic Algorithm
-        progress_bar.progress(70, text="9/13: Memetik Algoritma (GA + HC) çözülüyor...")
-        res_t10 = run_memetic_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, pop_size=40, generations=60, crossover_rate=0.85, mutation_rate=0.05, local_search_depth=5, elitism_count=2, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(63, text=f"9/14: Memetik Algoritma (GA + HC) çözülüyor ({'Derin Hibrit İyileştirme' if is_capped else 'Standart'})...")
+        res_t10 = run_memetic_algorithm(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            pop_size=70 if is_capped else 40,
+            generations=400 if is_capped else 60,
+            crossover_rate=0.90 if is_capped else 0.85,
+            mutation_rate=0.08 if is_capped else 0.05,
+            local_search_depth=12 if is_capped else 5,
+            elitism_count=3 if is_capped else 2,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t10"] = res_t10
 
         # 10. Tabu Search
-        progress_bar.progress(78, text="10/13: Tabu Search Hafıza Tabanlı Arama çözülüyor...")
-        res_t11 = run_tabu_search(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=750, tabu_tenure=15, neighborhood_size=20, use_aspiration=True, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(70, text=f"10/14: Tabu Search Hafıza Tabanlı Arama çözülüyor ({'Geniş Komşuluk (45) & Uzun Hafıza' if is_capped else 'Standart'})...")
+        res_t11 = run_tabu_search(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            max_iterations=10000 if is_capped else 750,
+            tabu_tenure=25 if is_capped else 15,
+            neighborhood_size=45 if is_capped else 20,
+            use_aspiration=True,
+            use_diversification=is_capped,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t11"] = res_t11
 
         # 11. Variable Neighborhood Search (VNS)
-        progress_bar.progress(85, text="11/13: Variable Neighborhood Search (VNS) çözülüyor...")
-        res_t12 = run_variable_neighborhood_search(num_workers, num_days, req_day, req_eve, req_night, weights, max_iterations=1000, max_neighborhoods=3, local_search_depth=15, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(77, text=f"11/14: Variable Neighborhood Search (VNS) çözülüyor ({'Derin Çalkalama & Arama (Depth 30)' if is_capped else 'Standart'})...")
+        res_t12 = run_variable_neighborhood_search(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            max_iterations=10000 if is_capped else 1000,
+            max_neighborhoods=3,
+            local_search_depth=30 if is_capped else 15,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t12"] = res_t12
 
         # 12. Particle Swarm Optimization (Discrete PSO)
-        progress_bar.progress(92, text="12/13: Particle Swarm Optimization (Discrete PSO) çözülüyor...")
-        res_t13 = run_particle_swarm_optimization(num_workers, num_days, req_day, req_eve, req_night, weights, swarm_size=30, max_iterations=100, w_inertia=0.72, c1_cognitive=1.49, c2_social=1.49, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(84, text=f"12/14: Particle Swarm Optimization (Discrete PSO) çözülüyor ({'Geniş Sürü (60) & 500 İterasyon' if is_capped else 'Standart'})...")
+        res_t13 = run_particle_swarm_optimization(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            swarm_size=60 if is_capped else 30,
+            max_iterations=500 if is_capped else 100,
+            w_inertia=0.80 if is_capped else 0.72,
+            c1_cognitive=1.60 if is_capped else 1.49,
+            c2_social=1.60 if is_capped else 1.49,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t13"] = res_t13
 
         # 13. Ant Colony Optimization (ACO)
-        progress_bar.progress(93, text="13/14: Ant Colony Optimization (ACO) çözülüyor...")
-        res_t14 = run_ant_colony_optimization(num_workers, num_days, req_day, req_eve, req_night, weights, n_ants=20, max_iterations=60, evaporation_rate=0.15, alpha=1.0, beta=2.0, seed=42, custom_workers=custom_workers)
+        progress_bar.progress(91, text=f"13/14: Ant Colony Optimization (ACO) çözülüyor ({'40 Karınca Kolonisi & 300 Tur' if is_capped else '200 İterasyon'})...")
+        res_t14 = run_ant_colony_optimization(
+            num_workers, num_days, req_day, req_eve, req_night, weights,
+            n_ants=40 if is_capped else 20,
+            max_iterations=300 if is_capped else 200,
+            evaporation_rate=0.12 if is_capped else 0.15,
+            alpha=1.2 if is_capped else 1.0,
+            beta=2.2 if is_capped else 2.0,
+            seed=42, custom_workers=custom_workers, time_limit=t_limit
+        )
         st.session_state["res_t14"] = res_t14
 
         # 14. Google CP-SAT (Constraint Programming)
-        progress_bar.progress(100, text="14/14: Google CP-SAT Optimizasyonu çözülüyor...")
-        res_t15 = solve_cp_sat(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=10.0, num_threads=8, custom_workers=custom_workers)
+        progress_bar.progress(100, text=f"14/14: Google CP-SAT Optimizasyonu çözülüyor ({'Zaman Sınırı: ' + str(time_budget_sec) + 's' if is_capped else 'Standart'})...")
+        res_t15 = solve_cp_sat(num_workers, num_days, req_day, req_eve, req_night, weights, time_limit=t_limit if is_capped else 10.0, num_threads=8, custom_workers=custom_workers)
         st.session_state["res_t15"] = res_t15
 
-        st.success("✅ **Benchmark Tamamlandı:** Tüm 14 çözücü (3 Greedy + CSP + ILP + 8 Metasezgisel + Google CP-SAT) aynı parametreler ve kadro üzerinde başarıyla çalıştırıldı!")
+        if is_capped:
+            st.success(f"✅ **Eşit Zaman Benchmarkı Tamamlandı:** Tüm 14 çözücü algoritma başına tam **{time_budget_sec:.1f} saniye** eşit süre bütçesiyle yarıştı!")
+        else:
+            st.success("✅ **Standart Benchmark Tamamlandı:** Tüm 14 çözücü standart iterasyon parametreleri ile başarıyla çalıştırıldı!")
 
     st.divider()
 
@@ -491,7 +584,198 @@ def render_tab_comparison(params):
                 st.plotly_chart(fig_pbreak, width="stretch", key="bench_fig_pbreak")
             else:
                 st.info("Çözücüler henüz çalıştırılmadı.")
-                st.info("Çözücüler henüz çalıştırılmadı.")
+
+        # 5. GRAFİK: ZAMAN - CEZA ÖDÜNLEŞİM DAĞILIMI (PARETO TRADE-OFF SCATTER PLOT)
+        st.markdown("##### 5️⃣ Zaman - Kalite Dağılımı (X Ekseni: Çözüm Süresi vs. Y Ekseni: Ceza Puanı)")
+        st.caption("💡 **Nasıl Okunmalı?** Her nokta bir optimizasyon yöntemini temsil eder. **Sol-Alt köşe (Düşük Süre & Düşük Ceza)** hem en hızlı çalışan hem de en kaliteli çözümü üreten ideal Pareto bölgesidir.")
+
+        fig_scatter_tradeoff = px.scatter(
+            df_solvers,
+            x="Süre (ms)",
+            y="Ceza Puanı",
+            color="Tür",
+            text="Algoritma",
+            size=[20] * len(df_solvers),
+            hover_name="Algoritma",
+            hover_data={
+                "Süre (ms)": ":.2f",
+                "Ceza Puanı": True,
+                "Alt Sınıra Fark": True,
+                "Gap (%)": True,
+                "Tür": True,
+                "Geçerli": True
+            },
+            color_discrete_map={
+                "Doğrudan Sezgi": "#64748b",
+                "Kısıt Tatmin": "#0284c7",
+                "Matematiksel": "#2563eb",
+                "Metasezgisel": "#059669"
+            }
+        )
+
+        # Teorik Alt Sınır Referans Çizgisi
+        if theo_lb > 0:
+            fig_scatter_tradeoff.add_hline(
+                y=theo_lb,
+                line_dash="dash",
+                line_color="#dc2626",
+                line_width=2,
+                annotation_text=f"🎯 Teorik Alt Sınır (Z_LB = {theo_lb} Puan)",
+                annotation_position="bottom right",
+                annotation_font=dict(color="#dc2626", size=11)
+            )
+
+        fig_scatter_tradeoff.update_traces(
+            textposition="top right",
+            marker=dict(line=dict(width=1.5, color="#1e293b"))
+        )
+        fig_scatter_tradeoff.update_layout(
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#f8fafc",
+            height=460,
+            xaxis=dict(
+                title="Çözüm Süresi (Milisaniye - ms)",
+                gridcolor="#e2e8f0",
+                zeroline=False
+            ),
+            yaxis=dict(
+                title="Toplam Ceza Puanı (Z - Düşük Olan İyidir)",
+                gridcolor="#e2e8f0",
+                zeroline=False
+            ),
+            legend=dict(
+                orientation="h",
+                y=1.12,
+                x=0.0,
+                title=dict(text="Algoritma Türü:")
+            ),
+            margin=dict(l=20, r=20, t=30, b=20)
+        )
+        st.plotly_chart(fig_scatter_tradeoff, width="stretch", key="bench_fig_scatter_tradeoff")
+
+        # 6. GRAFİK: METASEZGİSEL YAKINSAMA VE İLERLEME GEÇMİŞİ (CONVERGENCE & EVOLUTION TRAJECTORIES)
+        meta_history_data = []
+        meta_solvers_for_traj = [
+            ("Hill Climbing", res7, "#0284c7"),
+            ("Simulated Annealing", res8, "#ea580c"),
+            ("Genetic Algorithm", res9, "#16a34a"),
+            ("Memetic Algorithm", res10, "#059669"),
+            ("Tabu Search", res11, "#9333ea"),
+            ("VNS Solver", res12, "#0891b2"),
+            ("Discrete PSO", res13, "#ca8a04"),
+            ("Ant Colony (ACO)", res14, "#d97706"),
+            ("Google CP-SAT", res15, "#2563eb"),
+            ("ILP / MILP", res6, "#4f46e5")
+        ]
+
+        active_meta_solvers = [
+            (name, res, col) for name, res, col in meta_solvers_for_traj
+            if res and 'score_history' in res and len(res['score_history']) > 1
+        ]
+
+        if len(active_meta_solvers) > 0:
+            st.markdown("##### 6️⃣ Zamana Karşı Yakınsama ve İlerleme Grafiği (Time vs. Score Trajectory)")
+            st.caption("💡 **X Ekseni = Geçen Çözüm Süresi (ms), Y Ekseni = Ceza Puanı (Z).** Çözücülerin milisaniyeler içerisinde ceza puanını nasıl düşürdüğünü gösterir (Maksimum 40 ms aralıklarla örneklenmiştir).")
+
+            fig_traj = go.Figure()
+            history_summary_rows = []
+
+            for s_name, s_res, s_color in active_meta_solvers:
+                hist = s_res['score_history']
+                n_pts = len(hist)
+                exec_ms = float(s_res.get('exec_time_ms', 1.0))
+                init_val = float(hist[0])
+                final_val = float(hist[-1])
+                best_val = min(hist)
+                best_idx = hist.index(best_val)
+                best_step = best_idx + 1
+                best_time_ms = round((best_idx / max(1, n_pts - 1)) * exec_ms, 2)
+                improvement = max(0.0, init_val - final_val)
+                imp_pct = round((improvement / max(1.0, init_val)) * 100.0, 1)
+
+                # 40 ms örnekleme filtrelemesi (Downsampling to max 1 point per 40 ms)
+                sampled_x = [0.0]
+                sampled_y = [init_val]
+                last_t = 0.0
+
+                for i in range(1, n_pts - 1):
+                    t_i = round((i / max(1, n_pts - 1)) * exec_ms, 2)
+                    if (t_i - last_t) >= 40.0 or i == best_idx:
+                        sampled_x.append(t_i)
+                        sampled_y.append(float(hist[i]))
+                        last_t = t_i
+
+                # Bitiş noktasını mutlaka ekle
+                if n_pts > 1:
+                    sampled_x.append(round(exec_ms, 2))
+                    sampled_y.append(final_val)
+
+                # Noktalı Çizgi Eğrisi (Lines + Markers)
+                fig_traj.add_trace(go.Scatter(
+                    x=sampled_x,
+                    y=sampled_y,
+                    mode="lines+markers",
+                    name=s_name,
+                    line=dict(color=s_color, width=2.5),
+                    marker=dict(size=6, symbol="circle", color=s_color),
+                    hovertemplate=(
+                        f"<b>{s_name}</b><br>" +
+                        "Geçen Süre: %{x:.1f} ms<br>" +
+                        "Ceza Puanı (Z): %{y}<br>" +
+                        "<extra></extra>"
+                    )
+                ))
+
+                history_summary_rows.append({
+                    "Algoritma": s_name,
+                    "Başlangıç Skoru": f"{int(init_val)} Puan",
+                    "Nihai Skor": f"{int(final_val)} Puan",
+                    "Net İyileşme (ΔZ)": f"-{int(improvement)} Puan" if improvement > 0 else "0 Puan",
+                    "İyileşme Oranı": f"%{imp_pct}",
+                    "Toplam Süre": f"{exec_ms:.2f} ms",
+                    "En İyiye Ulaştığı An": f"{best_time_ms} ms ({best_step}. Adım)"
+                })
+
+            # Teorik Alt Sınır Referans Çizgisi
+            if theo_lb > 0:
+                fig_traj.add_hline(
+                    y=theo_lb,
+                    line_dash="dash",
+                    line_color="#dc2626",
+                    line_width=2,
+                    annotation_text=f"🎯 Teorik Alt Sınır (Z_LB = {theo_lb} Puan)",
+                    annotation_position="bottom right",
+                    annotation_font=dict(color="#dc2626", size=11)
+                )
+
+            fig_traj.update_layout(
+                paper_bgcolor="#ffffff",
+                plot_bgcolor="#f8fafc",
+                height=480,
+                xaxis=dict(
+                    title="Geçen Çözüm Süresi (Milisaniye - ms)",
+                    gridcolor="#e2e8f0",
+                    zeroline=False
+                ),
+                yaxis=dict(
+                    title="Toplam Ceza Puanı (Z - Düşük Olan İyidir)",
+                    gridcolor="#e2e8f0",
+                    zeroline=False
+                ),
+                legend=dict(
+                    orientation="h",
+                    y=1.15,
+                    x=0.0
+                ),
+                margin=dict(l=20, r=20, t=30, b=20)
+            )
+
+            st.plotly_chart(fig_traj, width="stretch", key="bench_fig_traj")
+
+            # İlerleme Geçmişi Karşılaştırma Tablosu
+            if len(history_summary_rows) > 0:
+                with st.expander("📈 Metasezgisel Çözücülerin Başlangıç-Bitiş İyileştirme ve Yakınsama Tablosu", expanded=False):
+                    st.dataframe(pd.DataFrame(history_summary_rows), width="stretch", hide_index=True)
 
         st.markdown("##### 📋 Canlı Benchmark & Teorik Alt Sınıra Göre Sapma (Optimality Gap) Tablosu")
         df_summary_table = pd.DataFrame([
@@ -1298,7 +1582,7 @@ def render_tab_comparison(params):
         with tab_ensemble:
             st.markdown("##### 🌐 Tüm Çalıştırılmış Çözücülerin Konsensüs (Ortak Akıl) Analizi")
             st.markdown("""
-            Bu analiz; sistemde çalıştırılmış olan tüm çözücülerin (<i>K</i> adet) her bir hücre (<i>w, d</i>) için **çoğunluk oyu konsensüs oranını (%)** hesaplar.
+            Bu analiz; sistemde çalıştırılmış olan tüm çözücülerin (*K* adet) her bir (*işçi, gün*) hücresi için **çoğunluk oyu konsensüs oranını (%)** hesaplar.
             Konsensüs oranı %100 olan hücreler, problemin matematiksel yapısı gereği tüm sezgisel ve matematiksel modellerin **kesin olarak aynı vardiyaya mecbur kaldığı kilit düğümleri** gösterir.
             """)
 

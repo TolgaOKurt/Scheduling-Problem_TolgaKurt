@@ -18,10 +18,10 @@ from algorithms.greedy_solver import run_greedy_algorithm, get_best_greedy_initi
 from algorithms.penalty_calculator import calculate_full_penalties, check_swap_feasibility, build_worker_request_details, audit_all_hard_constraints
 from algorithms.solver_contract import build_standard_solver_result
 
-def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_iterations=3000, seed=42, custom_workers=None, callback=None, stream_interval=50):
+def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_iterations=3000, seed=42, custom_workers=None, callback=None, stream_interval=50, time_limit=None):
     """
     Tepeden Tırmanma (Hill Climbing Local Search) Çözücüsü.
-    Sonlandırma nedeni (termination_reason) ve canlı izleme callback desteği.
+    Sonlandırma nedeni (termination_reason), süre bütçesi (time_limit) ve canlı izleme callback desteği.
     """
     start_time = time.time()
     random.seed(seed)
@@ -58,7 +58,11 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
     # =========================================================================
     # 3. YÖRESEL ARAMA & KOMŞULUK DÖNGÜSÜ (LOCAL SEARCH / HILL CLIMBING LOOP)
     # =========================================================================
-    for it in range(max_iterations):
+    effective_max_iters = 1000000 if time_limit else max_iterations
+    for it in range(effective_max_iters):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            termination_reason = f"Maksimum Süre Sınırına Ulaşıldı ({time_limit}s)"
+            break
         # ---------------------------------------------------------------------
         # 3.1 KOMŞULUK OPERATÖRÜ (NEIGHBORHOOD MOVE: RANDOM 2-WORKER DAY-SWAP)
         # ---------------------------------------------------------------------

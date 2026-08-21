@@ -134,7 +134,7 @@ def _apply_n3_macro_posta_swap(schedule, workers, n_workers, n_days, shift_reqs)
 def run_variable_neighborhood_search(
     n_workers, n_days, r_day, r_eve, r_night, weights,
     max_iterations=1000, max_neighborhoods=3, local_search_depth=15,
-    seed=42, custom_workers=None, callback=None, stream_interval=20
+    seed=42, custom_workers=None, callback=None, stream_interval=20, time_limit=None
 ):
     """
     Değişken Komşuluk Araması (Variable Neighborhood Search - VNS) Optimizasyon Motoru.
@@ -143,6 +143,7 @@ def run_variable_neighborhood_search(
     - max_iterations (int): Toplam VNS dış döngü iterasyon sayısı (K_max)
     - max_neighborhoods (int): Kullanılacak komşuluk yapısı sayısı (K_neigh = 1, 2, 3)
     - local_search_depth (int): Her çalkalama sonrası uygulanacak yerel arama adım sayısı
+    - time_limit (float): Maksimum süre sınırı (saniye)
     """
     start_time = time.time()
     random.seed(seed)
@@ -189,7 +190,10 @@ def run_variable_neighborhood_search(
     # =========================================================================
     # 3. VNS ANA İTERASYON DÖNGÜSÜ (MAIN VNS LOOP)
     # =========================================================================
-    for it in range(1, max_iterations + 1):
+    effective_max_iters = 1000000 if time_limit else max_iterations
+    for it in range(1, effective_max_iters + 1):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            break
         # ---------------------------------------------------------------------
         # ADIM 1: SHAKING (ÇALKALAMA / SARSMA - N_k Komşuluğundan Rastgele Sıçrama)
         # ---------------------------------------------------------------------

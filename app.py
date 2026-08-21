@@ -14,6 +14,7 @@ from views.tab3_steel_model import render_tab3
 from views.tab4_simulation import render_tab4
 from views.tab5_csp_backtracking import render_tab5
 from views.tab6_ilp_optimization import render_tab6
+from views.tab_metaheuristic_guide import render_tab_metaheuristic_guide
 from views.tab7_hill_climbing import render_tab7
 from views.tab8_simulated_annealing import render_tab8
 from views.tab9_genetic_algorithm import render_tab9
@@ -79,7 +80,7 @@ with c1_3:
         st.session_state["active_tab"] = "tab3"
         st.rerun()
 
-# ARA SATIR: MERKEZİ MODEL & KADRO YÖNETİMİ (Tek başına satır - Tab 3'ten sonra, Tab 4'ten önce)
+# ARA SATIR 1: MERKEZİ MODEL & KADRO YÖNETİMİ (Tek başına satır - Tab 3'ten sonra, Tab 4'ten önce)
 btn_type_config = "primary" if st.session_state["active_tab"] == "tab_config" else "secondary"
 if st.button("⚙️ Merkezi Model Yapılandırması & Ortak Kadro Yönetimi (Global Parametreler)", key="btn_t_config", width="stretch", type=btn_type_config):
     st.session_state["active_tab"] = "tab_config"
@@ -106,8 +107,14 @@ with c2_3:
         st.session_state["active_tab"] = "tab6"
         st.rerun()
 
-# 3. SATIR: METASEZGİSEL OPTİMİZASYON ÇÖZÜCÜLERİ - BÖLÜM 1 (3 KOLON)
-c3_1, c3_2, c3_3 = st.columns(3)
+# ARA SATIR 2: METASEZGİSEL PROBLEM ADAPTASYON REHBERİ (Tek başına satır - Tab 6 ile Tab 7 arasında)
+btn_type_meta_guide = "primary" if st.session_state["active_tab"] == "tab_meta_guide" else "secondary"
+if st.button("🧩 Metasezgisel Algoritmalar Rehberi: Problemden Bağımsız Çatılar & Her Probleme Adaptasyon Metodolojisi", key="btn_t_meta_guide", width="stretch", type=btn_type_meta_guide):
+    st.session_state["active_tab"] = "tab_meta_guide"
+    st.rerun()
+
+# 3. SATIR: METASEZGİSEL OPTİMİZASYON ÇÖZÜCÜLERİ - 1. GRUP (4 KOLON)
+c3_1, c3_2, c3_3, c3_4 = st.columns(4)
 
 with c3_1:
     btn_type = "primary" if st.session_state["active_tab"] == "tab7" else "secondary"
@@ -127,47 +134,44 @@ with c3_3:
         st.session_state["active_tab"] = "tab9"
         st.rerun()
 
-# 4. SATIR: GELİŞMİŞ METASEZGİSEL ÇÖZÜCÜLER - BÖLÜM 2 (3 KOLON)
-c4_1, c4_2, c4_3 = st.columns(3)
-
-with c4_1:
+with c3_4:
     btn_type = "primary" if st.session_state["active_tab"] == "tab10" else "secondary"
     if st.button("🏆 Sekme 10: Memetik Algoritma", key="btn_t10", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab10"
         st.rerun()
 
-with c4_2:
+# 4. SATIR: METASEZGİSEL OPTİMİZASYON ÇÖZÜCÜLERİ - 2. GRUP (4 KOLON)
+c4_1, c4_2, c4_3, c4_4 = st.columns(4)
+
+with c4_1:
     btn_type = "primary" if st.session_state["active_tab"] == "tab11" else "secondary"
     if st.button("🤫 Sekme 11: Tabu Search", key="btn_t11", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab11"
         st.rerun()
 
-with c4_3:
+with c4_2:
     btn_type = "primary" if st.session_state["active_tab"] == "tab12" else "secondary"
-    if st.button("🔄 Sekme 12: Variable Neighborhood Search (VNS)", key="btn_t12", width="stretch", type=btn_type):
+    if st.button("🔄 Sekme 12: VNS Solver", key="btn_t12", width="stretch", type=btn_type):
         st.session_state["active_tab"] = "tab12"
         st.rerun()
 
-# 5. SATIR: SÜRÜ ZEKASI, BİYO-ESİNLENMELİ & KISIT PROGRAMLAMA ÇÖZÜCÜLERİ (3 KOLON)
-c5_1, c5_2, c5_3 = st.columns(3)
-
-with c5_1:
+with c4_3:
     btn_type_t13 = "primary" if st.session_state["active_tab"] == "tab13" else "secondary"
     if st.button("🐝 Sekme 13: Discrete PSO", key="btn_t13", width="stretch", type=btn_type_t13):
         st.session_state["active_tab"] = "tab13"
         st.rerun()
 
-with c5_2:
+with c4_4:
     btn_type_t14 = "primary" if st.session_state["active_tab"] == "tab14" else "secondary"
-    if st.button("🐜 Sekme 14: Ant Colony Optimization (ACO)", key="btn_t14", width="stretch", type=btn_type_t14):
+    if st.button("🐜 Sekme 14: ACO Solver", key="btn_t14", width="stretch", type=btn_type_t14):
         st.session_state["active_tab"] = "tab14"
         st.rerun()
 
-with c5_3:
-    btn_type_t15 = "primary" if st.session_state["active_tab"] == "tab15" else "secondary"
-    if st.button("⚡ Sekme 15: Google CP-SAT", key="btn_t15", width="stretch", type=btn_type_t15):
-        st.session_state["active_tab"] = "tab15"
-        st.rerun()
+# 5. SATIR: KISIT PROGRAMLAMA & SAT ÇÖZÜCÜSÜ (Tek başına satır)
+btn_type_t15 = "primary" if st.session_state["active_tab"] == "tab15" else "secondary"
+if st.button("⚡ Sekme 15: Google CP-SAT (Constraint Programming & SAT Çözücüsü)", key="btn_t15", width="stretch", type=btn_type_t15):
+    st.session_state["active_tab"] = "tab15"
+    st.rerun()
 
 # 6. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
 btn_type_comp = "primary" if st.session_state["active_tab"] == "tab_comparison" else "secondary"
@@ -194,6 +198,8 @@ elif curr == "tab5":
     render_tab5(global_params)
 elif curr == "tab6":
     render_tab6(global_params)
+elif curr == "tab_meta_guide":
+    render_tab_metaheuristic_guide()
 elif curr == "tab7":
     render_tab7(global_params)
 elif curr == "tab8":

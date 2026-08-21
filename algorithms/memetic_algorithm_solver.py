@@ -54,7 +54,7 @@ def local_search_refinement(chromosome, workers, n_workers, n_days, shift_reqs, 
 def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, 
                          pop_size=50, generations=100, crossover_rate=0.85, 
                          mutation_rate=0.05, local_search_depth=5, elitism_count=2, seed=42, custom_workers=None,
-                         callback=None, stream_interval=2):
+                         callback=None, stream_interval=2, time_limit=None):
     """
     Memetik Algoritma (Hibrit Genetik + Tepeden Tırmanma Lokal Arama) Motoru.
     """
@@ -108,7 +108,10 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     # =========================================================================
     # 3. HİBRİT EVRİMSEL JENERASYON DÖNGÜSÜ (MEMETIC GENERATIONS LOOP)
     # =========================================================================
-    for gen in range(generations):
+    effective_generations = 100000 if time_limit else generations
+    for gen in range(effective_generations):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            break
         # ---------------------------------------------------------------------
         # 3.1 POPÜLASYON UYGUNLUK DEĞERLENDİRMESİ
         # ---------------------------------------------------------------------

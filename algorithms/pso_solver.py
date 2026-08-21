@@ -96,7 +96,8 @@ def run_particle_swarm_optimization(
     seed: int = 42,
     custom_workers: Optional[List[Dict[str, Any]]] = None,
     callback: Optional[Any] = None,
-    stream_interval: int = 5
+    stream_interval: int = 5,
+    time_limit: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Vardiya Çizelgeleme Problemi için Kesikli Parçacık Sürü Zekası (Discrete PSO) Çözücüsü.
@@ -155,12 +156,15 @@ def run_particle_swarm_optimization(
     # =========================================================================
     # 3. PSO SÜRÜ ARAMA VE HIZ/KONUM GÜNCELLEME DÖNGÜSÜ (PSO MAIN LOOP)
     # =========================================================================
-    for it in range(1, max_iterations + 1):
+    effective_max_iters = 100000 if time_limit else max_iterations
+    for it in range(1, effective_max_iters + 1):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            break
         # ---------------------------------------------------------------------
         # 3.1 DİNAMİK ATALET AĞIRLIĞI (LINEAR DECREASING INERTIA WEIGHT)
         # ---------------------------------------------------------------------
         # Başta geniş keşif (Exploration), sonda derin sömürü (Exploitation) için w lineer azaltılır
-        w_current = w_inertia - ((w_inertia - 0.4) * (it / max_iterations))
+        w_current = w_inertia - ((w_inertia - 0.4) * (it / max(1, effective_max_iters)))
 
         current_scores = []
 

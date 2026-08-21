@@ -81,7 +81,8 @@ def run_ant_colony_optimization(
     q_deposit: float = 100.0,
     seed: int = 42,
     custom_workers: Optional[List[Dict[str, Any]]] = None,
-    callback: Optional[Any] = None
+    callback: Optional[Any] = None,
+    time_limit: Optional[float] = None
 ) -> Dict[str, Any]:
     """
     Vardiya Çizelgeleme Problemi için Kesikli Karınca Kolonisi Optimizasyonu (Discrete ACO) çalıştırır.
@@ -155,7 +156,10 @@ def run_ant_colony_optimization(
     # =========================================================================
     # 3. KARINCA KOLONİSİ İTERASYON DÖNGÜSÜ (ACO MAIN LOOP)
     # =========================================================================
-    for iteration in range(max_iterations):
+    effective_max_iterations = 100000 if time_limit else max_iterations
+    for iteration in range(effective_max_iterations):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            break
         iter_best_schedule = None
         iter_best_score = float('inf')
         ant_scores = []

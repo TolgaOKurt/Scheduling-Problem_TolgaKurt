@@ -151,12 +151,9 @@ def render_tab14(params):
     # 4. HESAPLAMA YÜKÜ VE ÖN-ANALİZ PANELİ
     # ==============================================================================
     cost_ms = params.get('call_cost_ms', round(0.001492 * (num_workers * num_days) + 0.1670, 3))
-    # Her iterasyonda: m karınca çizelge inşası + en iyi karıncaya 12 mikro-onarım takası
     aco_est_calls = int((n_ants * max_iter) + (12 * max_iter) + 1)
-    aco_total_ms = aco_est_calls * cost_ms
-    aco_time_str = f"{aco_total_ms/1000:.2f} sn" if aco_total_ms >= 1000 else f"{aco_total_ms:.0f} ms"
 
-    st.markdown("#### 🧮 Karınca Kolonisi Değerlendirme & Süre Tahmin Paneli (Ön-Analiz)")
+    st.markdown("#### 🧮 Karınca Kolonisi Değerlendirme Tahmin Paneli (Ön-Analiz)")
     e_col1, e_col2 = st.columns(2)
     with e_col1:
         render_evaluator_cost_badge(aco_est_calls, cost_ms, label="Tahmini Ceza Değerlendirme (m Karınca × İterasyon + Lokal Onarım)")
@@ -164,7 +161,7 @@ def render_tab14(params):
         st.metric(
             label="Koloni Arama Kapasitesi",
             value=f"{n_ants} Karınca",
-            delta=f"{max_iter} Tur × {n_ants} = {n_ants * max_iter:,} Karınca Gezintisi (~{aco_time_str})",
+            delta=f"{max_iter} Tur × {n_ants} = {n_ants * max_iter:,} Karınca Gezintisi",
             help="Koloninin her turda paralel olarak keşfettiği bağımsız çizelge patikası sayısı."
         )
 

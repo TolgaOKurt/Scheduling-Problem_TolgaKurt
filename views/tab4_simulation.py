@@ -178,29 +178,14 @@ def render_tab4(params):
 
     st.divider()
 
-    # --- SERT KISIT İHLALLERİ VE UYARI PANENELİ ---
-    if ("Miyopik" in solver_mode or "Naif" in solver_mode) and hard_viols_count > 0:
-        st.error(f"""
-        ⚠️ **LİTERATÜR BULGUSU - Pazar İzin Çöküşü (End-of-Horizon Shortage):**  
-        **{hard_viols_count} Adet Sert Kısıt İhlali / Vardiya Eksikliği Tespit Edildi!**  
-        Sıralı Miyopik Greedy algoritması geleceği öngöremediği için işçileri haftanın başında aralıksız çalıştırmış; 7. güne gelindiğinde neredeyse tüm işçiler kanuni maksimum çalışma süresini doldurduğu için aynı anda zorunlu izne ayrılmak zorunda kalmıştır.
-        """)
-        
+    # --- SERT KISIT İHLALLERİ VE UYARI PANELİ ---
+    if hard_viols_count > 0:
+        st.error(f"⚠️ **Sert Kısıt İhlali / Kadro Eksikliği:** {hard_viols_count} Adet Sert Kısıt İhlali veya Vardiya Kadro Eksikliği Tespit Edildi!")
         with st.expander("📌 Sert Kısıt İhlalleri ve Vardiya Kadro Eksiklikleri Detayı", expanded=True):
             df_logs = pd.DataFrame({"İhlal Açıklaması ve Vardiya Detayı": hard_logs})
             st.dataframe(df_logs, width="stretch", hide_index=True)
-
-    elif hard_viols_count > 0:
-        st.warning(f"⚠️ **Kadro Yetersizliği:** {hard_viols_count} Adet Vardiya İhtiyacı Eksik Kaldı. (Mevcut personel sayısı veya sertifika dağılımı seçilen vardiya ihtiyaçlarını karşılamıyor).")
-        with st.expander("📌 Vardiya Kadro Eksiklikleri Detayı", expanded=False):
-            df_logs = pd.DataFrame({"İhlal Açıklaması ve Vardiya Detayı": hard_logs})
-            st.dataframe(df_logs, width="stretch", hide_index=True)
-
     else:
-        if "MRV" in solver_mode or "LCV" in solver_mode or "Kısıt Öncelikli" in solver_mode:
-            st.success("✅ **BAŞARILI (MRV / LCV Tabanlı Önceliklendirme):** Kritik MYK belgeli işçiler öncelikli güvenceye alındı, izin talepleri gözetildi ve hiçbir Sert Kısıt ihlali yaşanmadan vardiya ihtiyaçları (%100) karşılandı.")
-        else:
-            st.success("✅ **BAŞARILI:** Kademeli izin deseni sayesinde hiçbir Sert Kısıt ihlali yaşanmadı! Vardiya kadro ihtiyaçları (%100) eksiksiz karşılandı.")
+        st.success("✅ **BAŞARILI:** Hiçbir Sert Kısıt ihlali yaşanmadı! Vardiya kadro ve zorunlu sertifika ihtiyaçları (%100) eksiksiz karşılandı.")
 
     st.divider()
 

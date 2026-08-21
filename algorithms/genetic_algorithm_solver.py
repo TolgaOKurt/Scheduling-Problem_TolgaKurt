@@ -20,7 +20,7 @@ from algorithms.solver_contract import build_standard_solver_result
 def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, 
                           pop_size=50, generations=100, crossover_rate=0.85, 
                           mutation_rate=0.05, elitism_count=2, seed=42, custom_workers=None,
-                          callback=None, stream_interval=2):
+                          callback=None, stream_interval=2, time_limit=None):
     """
     Genetik Algoritma (Evrimsel Arama) Vardiya Optimizasyon Motoru.
     """
@@ -73,7 +73,10 @@ def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     # =========================================================================
     # 3. EVRİMSEL JENERASYON DÖNGÜSÜ (EVOLUTIONARY GENERATIONS LOOP)
     # =========================================================================
-    for gen in range(generations):
+    effective_generations = 100000 if time_limit else generations
+    for gen in range(effective_generations):
+        if time_limit and (time.time() - start_time) >= time_limit:
+            break
         # ---------------------------------------------------------------------
         # 3.1 TÜM POPÜLASYONUN DEĞERLENDİRİLMESİ (FITNESS EVALUATION)
         # ---------------------------------------------------------------------
