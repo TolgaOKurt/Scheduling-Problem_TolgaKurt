@@ -24,14 +24,16 @@ from algorithms.greedy_solver import get_best_greedy_initial_solution
 from algorithms.solver_contract import build_standard_solver_result
 
 
-def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weights, workers=None, custom_workers=None, return_breakdown=False):
+def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weights, workers=None, custom_workers=None, return_breakdown=False, return_stages=False):
     """
     Tam Sayılı (Integer) kısıtlar gevşetilerek (Continuous LP Relaxation) ve analitik
     kaçınılmaz cezalar hesaplanarak problemin GERÇEK TEORİK ALT SINIRINI (Best Bound) bulur.
     return_breakdown=True ise (total_lb, breakdown_dict, reasons_list) döndürür.
+    return_stages=True ise (total_lb, breakdown_dict, reasons_list, stage_info) döndürür.
     """
     workers = custom_workers if custom_workers is not None else (workers if workers is not None else generate_worker_profiles(n_workers, n_days, randomize=False))
     w_night = weights.get('night_imb', 25)
+    w_work = weights.get('workload_imb', weights.get('workload', 20))
     w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
@@ -39,9 +41,14 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
     
     # 1. Analitik Kaçınılmaz Alt Sınırlar
     tot_night_req = r_night * n_days
-    r = tot_night_req % max(1, n_workers)
+    r_night_rem = tot_night_req % max(1, n_workers)
     target_avg_night = tot_night_req / max(1, n_workers)
-    night_lb = (2.0 * r * (n_workers - r) / max(1, n_workers)) * w_night
+    night_lb = (2.0 * r_night_rem * (n_workers - r_night_rem) / max(1, n_workers)) * w_night
+
+    tot_work_req = (r_day + r_eve + r_night) * n_days
+    r_work_rem = tot_work_req % max(1, n_workers)
+    target_avg_work = tot_work_req / max(1, n_workers)
+    work_lb = (2.0 * r_work_rem * (n_workers - r_work_rem) / max(1, n_workers)) * w_work
 
     ustas = [w for w in workers if w['is_usta']]
     max_shifts_per_usta = math.floor(n_days * 6 / 7)
@@ -66,13 +73,15 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             pref_lb += excess * w_pref
             over_pref_details.append(f"Gün {day_idx+1}'de {req_count} talep (Kapasite: {max_off_capacity_per_day})")
 
-    analytical_lb = night_lb + usta_lb + pref_lb
+    analytical_lb = round(night_lb + work_lb + usta_lb + pref_lb, 2)
 
     c_circ = 0.0
-    c_pref = max(0.0, pref_lb)
+    c_pref = pref_lb
     c_posta = 0.0
-    c_exp = max(0.0, usta_lb)
-    c_night = max(0.0, night_lb)
+    c_exp = usta_lb
+    c_night = night_lb
+    c_work = work_lb
+    lp_val = 0.0
 
     try:
         model = pulp.LpProblem("LP_Relaxation_Bound", pulp.LpMinimize)
@@ -93,13 +102,16 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
         d_pos = pulp.LpVariable.dicts("d_pos", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
         d_neg = pulp.LpVariable.dicts("d_neg", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
 
+        d_pos_work = pulp.LpVariable.dicts("d_pos_work", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
+        d_neg_work = pulp.LpVariable.dicts("d_neg_work", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
+
         for i in range(n_workers):
             for t in range(n_days):
                 model += pulp.lpSum([x[i, t, k] for k in shifts]) == 1
                 
         for t in range(n_days):
             for k in [1, 2, 3]:
-                model += pulp.lpSum([x[i, t, k] for i in range(n_workers)]) >= shift_reqs[k]
+                model += pulp.lpSum([x[i, t, k] for i in range(n_workers)]) == shift_reqs[k]
                 
         req_certs = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
         for cert in req_certs:
@@ -134,6 +146,10 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             night_sum_i = pulp.lpSum([x[i, t, 3] for t in range(n_days)])
             model += night_sum_i - target_avg_night == d_pos[i] - d_neg[i]
 
+        for i in range(n_workers):
+            work_sum_i = pulp.lpSum([x[i, t, k] for t in range(n_days) for k in [1, 2, 3]])
+            model += work_sum_i - target_avg_work == d_pos_work[i] - d_neg_work[i]
+
         for t in range(n_days):
             for p in postas:
                 p_wids = [w['id'] for w in workers if w['posta'] == p]
@@ -149,20 +165,39 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             w_pref * pulp.lpSum([pref_viol[i] for i in range(n_workers)]) +
             w_posta * pulp.lpSum([posta_dev[p, t] for p in postas for t in range(n_days)]) +
             w_exp * pulp.lpSum([no_usta[t, k] for t in range(n_days) for k in [1, 2, 3]]) +
-            w_night * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)])
+            w_night * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)]) +
+            w_work * pulp.lpSum([d_pos_work[i] + d_neg_work[i] for i in range(n_workers)])
         )
         model += total_penalty_expr
         solver = pulp.PULP_CBC_CMD(msg=False)
         model.solve(solver)
         
         if model.status == 1:
-            c_circ = round(w_circ * sum(pulp.value(sirk[i, t]) for i in range(n_workers) for t in range(n_days - 1)), 2)
-            c_pref = max(c_pref, round(w_pref * sum(pulp.value(pref_viol[i]) for i in range(n_workers)), 2))
-            c_posta = round(w_posta * sum(pulp.value(posta_dev[p, t]) for p in postas for t in range(n_days)), 2)
-            c_exp = max(c_exp, round(w_exp * sum(pulp.value(no_usta[t, k]) for t in range(n_days) for k in [1, 2, 3]), 2))
-            c_night = max(c_night, round(w_night * sum(pulp.value(d_pos[i]) + pulp.value(d_neg[i]) for i in range(n_workers)), 2))
-            lp_val = pulp.value(model.objective) if pulp.value(model.objective) is not None else 0
-            final_total_lb = round(max(lp_val, analytical_lb, c_circ + c_pref + c_posta + c_exp + c_night), 2)
+            lp_circ = round(w_circ * sum(pulp.value(sirk[i, t]) for i in range(n_workers) for t in range(n_days - 1)), 2)
+            lp_pref = round(w_pref * sum(pulp.value(pref_viol[i]) for i in range(n_workers)), 2)
+            lp_posta = round(w_posta * sum(pulp.value(posta_dev[p, t]) for p in postas for t in range(n_days)), 2)
+            lp_exp = round(w_exp * sum(pulp.value(no_usta[t, k]) for t in range(n_days) for k in [1, 2, 3]), 2)
+            lp_night = round(w_night * sum(pulp.value(d_pos[i]) + pulp.value(d_neg[i]) for i in range(n_workers)), 2)
+            lp_work = round(w_work * sum(pulp.value(d_pos_work[i]) + pulp.value(d_neg_work[i]) for i in range(n_workers)), 2)
+            lp_val = round(lp_circ + lp_pref + lp_posta + lp_exp + lp_night + lp_work, 2)
+            
+            final_total_lb = round(max(lp_val, analytical_lb), 2)
+            
+            # Breakdown: En sıkı (en yüksek) alt sınıra ait bileşen dağılımını göster
+            if lp_val >= analytical_lb:
+                c_circ = lp_circ
+                c_pref = lp_pref
+                c_posta = lp_posta
+                c_exp = lp_exp
+                c_night = lp_night
+                c_work = lp_work
+            else:
+                c_circ = 0.0
+                c_pref = pref_lb
+                c_posta = 0.0
+                c_exp = usta_lb
+                c_night = night_lb
+                c_work = work_lb
         else:
             final_total_lb = round(analytical_lb, 2)
     except Exception:
@@ -170,6 +205,7 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
 
     breakdown = {
         'Gece Nöbeti Dengesizliği': c_night,
+        'Toplam İş Yükü Dengesizliği': c_work,
         'Kıdem / Usta Eksikliği': c_exp,
         'Kişisel İzin İhlali': c_pref,
         'Posta Takım Bütünlüğü İhlali': c_posta,
@@ -180,8 +216,8 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
     reasons = []
     if c_night > 0:
         if night_lb > 0:
-            n_high = r
-            n_low = n_workers - r
+            n_high = r_night_rem
+            n_low = n_workers - r_night_rem
             val_high = math.ceil(target_avg_night)
             val_low = math.floor(target_avg_night)
             reasons.append(
@@ -190,11 +226,27 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             )
         else:
             reasons.append(
-                f"🌙 **Gece Nöbeti Dengesizliği ({round(c_night, 1)} Puan):** Toplam {tot_night_req} gece nöbeti matematiksel olarak tam bölünse de, "
-                f"MYK sertifikaları, posta bütünlüğü ve dinlenme kısıtlarının eşzamanlı optimizasyonu sonucunda kaçınılmaz {round(c_night/w_night, 1)} nöbetlik sapma oluşmaktadır."
+                f"🌙 **Gece Nöbeti Dengesizliği ({round(c_night, 1)} Puan):** Sürekli LP gevşetmesinde diğer kısıtlarla eşzamanlı optimizasyon sonucunda {round(c_night/w_night, 1)} nöbetlik kaçınılmaz sapma oluşmaktadır."
             )
     else:
         reasons.append(f"🌙 **Gece Nöbeti Dengesizliği (0 Puan):** Toplam {tot_night_req} gece nöbeti {n_workers} personele tam bölünebilmektedir ({target_avg_night:.0f} nöbet/kişi).")
+
+    if c_work > 0:
+        if work_lb > 0:
+            w_high = r_work_rem
+            w_low = n_workers - r_work_rem
+            val_w_high = math.ceil(target_avg_work)
+            val_w_low = math.floor(target_avg_work)
+            reasons.append(
+                f"⚖️ **Toplam İş Yükü Dengesizliği ({round(c_work, 1)} Puan):** Toplam {tot_work_req} aktif vardiya {n_workers} personele tam bölünememektedir (ortalama {target_avg_work:.2f} gün/kişi). "
+                f"{w_high} işçi {val_w_high} gün, {w_low} işçi ise {val_w_low} gün çalışmak durumundadır."
+            )
+        else:
+            reasons.append(
+                f"⚖️ **Toplam İş Yükü Dengesizliği ({round(c_work, 1)} Puan):** Vardiya kotaları ve sertifika zorunlulukları nedeniyle çalışanlar arasında {round(c_work/w_work, 1)} günlük çalışma yükü sapması oluşmaktadır."
+            )
+    else:
+        reasons.append(f"⚖️ **Toplam İş Yükü Dengesizliği (0 Puan):** Toplam {tot_work_req} aktif vardiya {n_workers} personele tam eşit olarak paylaştırılabilmektedir ({target_avg_work:.0f} gün/kişi).")
 
     if c_exp > 0:
         reasons.append(
@@ -218,6 +270,29 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
             f"🔄 **Sirkadiyen Ritim Geçişi ({round(c_circ, 1)} Puan):** Vardiya kotaları ve sertifika zorunlulukları nedeniyle kaçınılmaz Akşam->Gündüz geçişi cezası oluşmaktadır."
         )
 
+    stage_info = {
+        'stage1_analytical': {
+            'night_lb': round(night_lb, 1),
+            'work_lb': round(work_lb, 1),
+            'usta_lb': round(usta_lb, 1),
+            'pref_lb': round(pref_lb, 1),
+            'total': round(analytical_lb, 1)
+        },
+        'stage2_continuous_lp': {
+            'lp_val': round(lp_val, 1) if 'lp_val' in locals() else 0.0,
+            'c_circ': round(lp_circ if 'lp_circ' in locals() else c_circ, 1),
+            'c_posta': round(lp_posta if 'lp_posta' in locals() else c_posta, 1),
+            'c_pref': round(lp_pref if 'lp_pref' in locals() else c_pref, 1),
+            'c_exp': round(lp_exp if 'lp_exp' in locals() else c_exp, 1),
+            'c_night': round(lp_night if 'lp_night' in locals() else c_night, 1),
+            'c_work': round(lp_work if 'lp_work' in locals() else c_work, 1),
+            'total': round(lp_val, 1) if 'lp_val' in locals() else 0.0
+        },
+        'final_bound': round(final_total_lb, 1)
+    }
+
+    if return_stages:
+        return final_total_lb, breakdown, reasons, stage_info
     if return_breakdown:
         return final_total_lb, breakdown, reasons
     return final_total_lb
@@ -309,31 +384,47 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     shifts = [0, 1, 2, 3]
     shift_reqs = {1: r_day, 2: r_eve, 3: r_night}
     
-    # 1. KARAR DEĞİŞKENLERİ
+    # =========================================================================
+    # 1. KARAR DEĞİŞKENLERİ TANIMI (DECISION VARIABLES)
+    # =========================================================================
+    # Ana İkili Değişken: x[i, t, k] = 1 (İşçi i, t gününde k vardiyasına atanırsa)
     x = pulp.LpVariable.dicts("x", ((i, t, k) for i in range(n_workers) for t in range(n_days) for k in shifts), cat=pulp.LpBinary)
+    # Sirkadiyen Geçiş Sapması: sirk[i, t] = 1 (Akşam -> Gündüz geçişi cezası)
     sirk = pulp.LpVariable.dicts("sirkadiyen", ((i, t) for i in range(n_workers) for t in range(n_days - 1)), cat=pulp.LpBinary)
+    # Kişisel İzin İhlali: pref_viol[i] = 1 (İşçinin istediği izin günü verilmediyse)
     pref_viol = pulp.LpVariable.dicts("pref_viol", (i for i in range(n_workers)), cat=pulp.LpBinary)
     
+    # Posta Takım Bütünlüğü Doğrusallaştırma Değişkenleri
     y_posta = pulp.LpVariable.dicts("y_posta", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), lowBound=0, cat=pulp.LpInteger)
     z_posta = pulp.LpVariable.dicts("z_posta", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpBinary)
     dev_posta_k = pulp.LpVariable.dicts("dev_posta_k", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), lowBound=0, cat=pulp.LpContinuous)
     posta_dev = pulp.LpVariable.dicts("posta_dev", ((p, t) for p in postas for t in range(n_days)), lowBound=0, cat=pulp.LpContinuous)
     
+    # Kıdemli Usta Eksikliği Değişkeni
     no_usta = pulp.LpVariable.dicts("no_usta", ((t, k) for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpBinary)
     
+    # Gece Nöbeti ve Toplam İş Yükü Dengesizliği Mutlak Sapma Değişkenleri (d_pos, d_neg)
     target_avg_night = (r_night * n_days) / max(1, n_workers)
+    target_avg_work = ((r_day + r_eve + r_night) * n_days) / max(1, n_workers)
     d_pos = pulp.LpVariable.dicts("d_pos", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
     d_neg = pulp.LpVariable.dicts("d_neg", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
+    d_pos_work = pulp.LpVariable.dicts("d_pos_work", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
+    d_neg_work = pulp.LpVariable.dicts("d_neg_work", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
 
+    # =========================================================================
     # 2. SERT KISITLAR (HARD CONSTRAINTS)
+    # =========================================================================
+    # Sert Kısıt 1: Günde Kesinlikle Yalnızca 1 Vardiya (veya OFF)
     for i in range(n_workers):
         for t in range(n_days):
             model += pulp.lpSum([x[i, t, k] for k in shifts]) == 1, f"OneShiftPerDay_{i}_{t}"
             
+    # Sert Kısıt 2: Vardiya Kotalarının %100 Karşılanması
     for t in range(n_days):
         for k in [1, 2, 3]:
-            model += pulp.lpSum([x[i, t, k] for i in range(n_workers)]) >= shift_reqs[k], f"MinReq_{t}_{k}"
+            model += pulp.lpSum([x[i, t, k] for i in range(n_workers)]) == shift_reqs[k], f"MinReq_{t}_{k}"
             
+    # Sert Kısıt 3: Her Vardiyada 4 Zorunlu MYK Sertifikalı Uzman Bulunması
     req_certs = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
     for cert in req_certs:
         cert_wids = [w['id'] for w in workers if cert in w['skills']]
@@ -342,24 +433,31 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
                 if len(cert_wids) > 0:
                     model += pulp.lpSum([x[i, t, k] for i in cert_wids]) >= 1, f"MYKCert_{cert}_{t}_{k}"
                 
+    # Sert Kısıt 4: 11 Saat Biyolojik Dinlenme (Gece -> Gündüz Yasaktır)
     for i in range(n_workers):
         for t in range(n_days - 1):
             model += x[i, t, 3] + x[i, t+1, 1] <= 1, f"NightToDayRest_{i}_{t}"
             
+    # Sert Kısıt 5: Kayan 7 Günlük Pencerede En Az 1 Gün Zorunlu OFF Dinlenmesi
     for i in range(n_workers):
         for t in range(n_days - 6):
             model += pulp.lpSum([x[i, tau, 0] for tau in range(t, t + 7)]) >= 1, f"WeeklyOff_{i}_{t}"
 
-    # 3. YUMUŞAK KISIT BAĞLAYICI DENKLEMLERİ
+    # =========================================================================
+    # 3. YUMUŞAK KISIT DOĞRUSALLAŞTIRMA DENKLEMLERİ (SOFT PENALTY LINEARIZATION)
+    # =========================================================================
+    # Yumuşak Kısıt 1: Sirkadiyen Ritim Geçişi (Akşam -> Gündüz Geçişi Cezası)
     for i in range(n_workers):
         for t in range(n_days - 1):
             model += sirk[i, t] >= x[i, t, 2] + x[i, t+1, 1] - 1, f"CircadianLink_{i}_{t}"
             
+    # Yumuşak Kısıt 2: Kişisel İzin Tercihi Doğrusallaştırması
     for i in range(n_workers):
         p_day_idx = int(workers[i]['pref_off']) - 1
         if 0 <= p_day_idx < n_days:
             model += pref_viol[i] >= 1 - x[i, p_day_idx, 0], f"PrefOffLink_{i}"
             
+    # Yumuşak Kısıt 3: Kıdemli Usta Varlığı Doğrusallaştırması
     for t in range(n_days):
         for k in [1, 2, 3]:
             if len(ustas_wids) > 0:
@@ -367,10 +465,17 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             else:
                 model += no_usta[t, k] == 1, f"UstaLink_NoUsta_{t}_{k}"
 
+    # Yumuşak Kısıt 4: Gece Nöbeti Adaleti (L1 Normu: |Gece_i - Hedef|)
     for i in range(n_workers):
         night_sum_i = pulp.lpSum([x[i, t, 3] for t in range(n_days)])
         model += night_sum_i - target_avg_night == d_pos[i] - d_neg[i], f"NightImbalanceLink_{i}"
 
+    # Yumuşak Kısıt 5: Toplam İş Yükü Dengesi (L1 Normu: |Çalışma_i - Hedef|)
+    for i in range(n_workers):
+        work_sum_i = pulp.lpSum([x[i, t, k] for t in range(n_days) for k in [1, 2, 3]])
+        model += work_sum_i - target_avg_work == d_pos_work[i] - d_neg_work[i], f"WorkloadImbalanceLink_{i}"
+
+    # Yumuşak Kısıt 6: 4-Posta Takım Bütünlüğü Korunması (Big-M Ayrık Doğrusallaştırma)
     for t in range(n_days):
         for p in postas:
             p_wids = [w['id'] for w in workers if w['posta'] == p]
@@ -381,11 +486,14 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
                 model += dev_posta_k[p, t, k] >= y_posta[p, t, k] - N_p * z_posta[p, t, k], f"PostaDevK_{p}_{t}_{k}"
             model += posta_dev[p, t] == pulp.lpSum([dev_posta_k[p, t, k] for k in [1, 2, 3]]), f"PostaDevSum_{p}_{t}"
 
-    # 4. TAM KÜRESEL AMAÇ FONKSİYONU
+    # =========================================================================
+    # 4. KÜRESEL AMAÇ FONKSİYONU (GLOBAL OBJECTIVE FUNCTION)
+    # =========================================================================
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_pref = weights.get('pref_off', 40)
     w_night_imb = weights.get('night_imb', 25)
+    w_workload_imb = weights.get('workload_imb', weights.get('workload', 20))
     w_exp = weights.get('exp_mix', 60)
     
     total_penalty_expr = (
@@ -393,10 +501,11 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
         w_pref * pulp.lpSum([pref_viol[i] for i in range(n_workers)]) +
         w_posta * pulp.lpSum([posta_dev[p, t] for p in postas for t in range(n_days)]) +
         w_exp * pulp.lpSum([no_usta[t, k] for t in range(n_days) for k in [1, 2, 3]]) +
-        w_night_imb * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)])
+        w_night_imb * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)]) +
+        w_workload_imb * pulp.lpSum([d_pos_work[i] + d_neg_work[i] for i in range(n_workers)])
     )
     
-    model += total_penalty_expr, "Minimize_All_5_Penalties"
+    model += total_penalty_expr, "Minimize_All_6_Penalties"
     
     # CBC log çıktısını yakalayarak Zaman Aşımı (Timeout) vs Optimal durumunu kesin tespit etme
     log_file = tempfile.NamedTemporaryFile(delete=False, suffix=".log").name
@@ -473,7 +582,9 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     obj_val = total_penalty
     
     # TEORİK ALT SINIR (BEST BOUND) & MIP GAP HESABI
-    calculated_best_bound = compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weights, workers)
+    calculated_best_bound, bound_breakdown, bound_reasons, stage_info = compute_lp_relaxation_bound(
+        n_workers, n_days, r_day, r_eve, r_night, weights, workers, return_breakdown=True, return_stages=True
+    )
 
     if is_infeasible:
         status_text = "❌ İMKANSIZ / KISIT İHLALİ (Infeasible)"
@@ -526,6 +637,9 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
             'is_timeout': is_timeout,
             'best_bound': best_bound,
             'mip_gap': mip_gap,
+            'stage_bounds': stage_info,
+            'bound_breakdown': bound_breakdown,
+            'bound_reasons': bound_reasons,
             'convergence_history': convergence_history
         }
     )

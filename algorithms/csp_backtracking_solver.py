@@ -36,18 +36,21 @@ class CSPBacktrackingSolver:
             
         self.schedule = np.zeros((n_workers, n_days), dtype=int)
 
+    # =========================================================================
+    # 1. SERT KISIT UYGUNLUK DENETİMLERİ (HARD CONSTRAINT VALIDATION)
+    # =========================================================================
     def is_valid_assignment(self, wid, day, shift):
         """Atamanın Sert Kısıtları ihlal edip etmediğini %100 denetler."""
         if shift == 0:
             return True
             
-        # Sert Kısıt 4: Vardiyalar Arası Dinlenme (Gece 08:00 çıkış -> Sabah 08:00 giriş = 0 saat dinlenme YASAK)
+        # Sert Kısıt: Vardiyalar Arası Dinlenme (Gece çıkışı sabah girişi = 0 saat dinlenme YASAKTIR)
         if day > 0:
             prev_shift = self.schedule[wid, day-1]
-            if prev_shift == 3 and shift == 1: # Gece sonrası Gündüz yazılamaz (0 saat dinlenme - Sert Kısıt)
+            if prev_shift == 3 and shift == 1: # Gece sonrası Gündüz yazılamaz (Sert Kısıt)
                 return False
             
-        # Sert Kısıt 5: Kayan 7 günlük pencerede en az 1 OFF günü olmalı (Max 6 gün üst üste çalışma)
+        # Sert Kısıt: Kayan 7 günlük pencerede en az 1 OFF günü olmalı (Max 6 gün üst üste çalışma)
         if day >= 6:
             past_6_offs = sum(1 for tau in range(day-6, day) if self.schedule[wid, tau] == 0)
             if past_6_offs == 0 and shift != 0:
@@ -56,13 +59,16 @@ class CSPBacktrackingSolver:
         return True
 
     def is_group_myk_certified(self, group):
-        """Sert Kısıt 2: Vardiyaya atanan grupta 4 zorunlu MYK ehliyetinin tamamının varlığını denetler."""
+        """Sert Kısıt: Vardiyaya atanan grupta 4 zorunlu MYK ehliyetinin tamamının varlığını denetler."""
         req_skills = {'Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu'}
         assigned_skills = set()
         for w in group:
             assigned_skills.update(w['skills'])
         return req_skills.issubset(assigned_skills)
 
+    # =========================================================================
+    # 2. ÇÖZÜCÜ ÇALIŞTIRMA VE SONUÇ DERLEME
+    # =========================================================================
     def solve(self, callback=None, stream_interval=50):
         """Backtracking (Geri İzleme) Arama Algoritması."""
         self.start_time = time.time()
@@ -119,6 +125,9 @@ class CSPBacktrackingSolver:
             }
         )
 
+    # =========================================================================
+    # 3. ADAY GRUP DALLANMA VE SIRALAMA STRATEJİLERİ (HEURISTIC BRANCHING)
+    # =========================================================================
     def _generate_candidate_groups(self, day, shift_idx, needed, target_posta):
         """Çeşitlemeli aday grupları türetir (Backtracking arama ağacı dallanması için)."""
         valid_candidates = [
@@ -185,15 +194,21 @@ class CSPBacktrackingSolver:
                 
         return group if len(group) == needed else None
 
+    # =========================================================================
+    # 4. ÖZYİNELEMELİ GERİ İZLEME MOTORU (RECURSIVE BACKTRACKING & PRUNING)
+    # =========================================================================
     def _backtrack(self, day, shift_idx, callback=None, stream_interval=50):
+        # Durdurma Kriteri 1: Maksimum Geri İzleme Sınırı
         if self.backtrack_count >= self.max_backtracks:
             return False
             
+        # Başarı Kriteri: Tüm günler başarıyla doldurulduğunda arama biter
         if day >= self.n_days:
             return True
             
         self.nodes_explored += 1
         
+        # Gün tamamlandığında bir sonraki güne geç
         if shift_idx > 3:
             return self._backtrack(day + 1, shift_idx=1, callback=callback, stream_interval=stream_interval)
             
@@ -201,22 +216,27 @@ class CSPBacktrackingSolver:
         postas = ['Posta A', 'Posta B', 'Posta C', 'Posta D']
         target_posta = postas[(day + shift_idx - 1) % 4]
         
+        # Bu vardiya için uygun aday grupları dallandır
         groups_to_try = self._generate_candidate_groups(day, shift_idx, needed, target_posta)
         
+        # Hiçbir geçerli grup bulunamazsa bu dal budanır (Dead-end Pruning)
         if not groups_to_try:
             self.backtrack_count += 1
             if callback and self.backtrack_count % stream_interval == 0:
                 callback(self.backtrack_count, 0, 0, f"| Gün: {day+1}/{self.n_days}")
             return False
 
+        # Dalları tek tek dene
         for chosen_group in groups_to_try:
+            # 1. Hamleyi Yap (İleri Atama / Forward Assignment)
             for w in chosen_group:
                 self.schedule[w['id'], day] = shift_idx
                 
+            # 2. Özyineleme (Derinlemesine İlerle / DFS)
             if self._backtrack(day, shift_idx + 1, callback=callback, stream_interval=stream_interval):
                 return True
                 
-            # GERİ İZLEME (BACKTRACK)
+            # 3. GERİ İZLEME (BACKTRACK / ROLLBACK): İleri dal başarısız olduysa hamleyi geri al
             self.backtrack_count += 1
             if callback and self.backtrack_count % stream_interval == 0:
                 callback(self.backtrack_count, 0, 0, f"| Gün: {day+1}/{self.n_days}")

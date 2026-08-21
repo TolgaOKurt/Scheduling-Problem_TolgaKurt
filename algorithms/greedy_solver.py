@@ -46,6 +46,9 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
     is_mrv_lcv = ("MRV" in solver_mode or "LCV" in solver_mode or "Kısıt Öncelikli" in solver_mode or "Constraint-First" in solver_mode)
     is_staggered = ("Kademeli" in solver_mode or "Akıllı" in solver_mode or "Staggered" in solver_mode or "Pattern" in solver_mode or is_mrv_lcv)
     
+    # =========================================================================
+    # 1. PLANLAMA DEĞİŞKENLERİ VE KADEMELİ İZİN TABLOSU
+    # =========================================================================
     staggered_off_days = {}
     if is_staggered:
         for w in workers:
@@ -55,7 +58,9 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
             else:
                 staggered_off_days[wid] = (wid % 7)
             
-    # Gün gün Atama Döngüsü
+    # =========================================================================
+    # 2. GÜNLÜK YAPICI ATAMA DÖNGÜSÜ (DAY-BY-DAY CONSTRUCTIVE LOOP)
+    # =========================================================================
     for d in range(n_days):
         shift_reqs = {1: r_day, 2: r_eve, 3: r_night}
         
@@ -69,11 +74,11 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
         assigned_shifts = {1: [], 2: [], 3: []}
         
         if is_staggered:
-            # -------------------------------------------------------------
-            # KADEMELİ / MRV-LCV MODU:
+            # -----------------------------------------------------------------
+            # KADEMELİ / MRV-LCV MODU (2-FAZLI İLERİYE BAKIŞLI ATAMA)
+            # -----------------------------------------------------------------
             # FAZ 1: Gün içindeki 3 vardiyanın her birine 4 zorunlu MYK ehliyetini
             # önceden paylaştır (Gündüzün tüm ehliyetleri tekeline almasını engeller).
-            # -------------------------------------------------------------
             for k in [1, 2, 3]:
                 target_p = target_posta_for_shift[k]
                 for cert in req_cert_list:
@@ -84,15 +89,17 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                         wid = w['id']
                         if schedule[wid, d] != 0 or any(w in assigned_shifts[s] for s in [1, 2, 3]):
                             continue
+                        # Sert Kısıt 1: Biyolojik Dinlenme (Gece/Akşam sonrası Gündüze gelemez)
                         if d > 0 and schedule[wid, d-1] in (2, 3) and k == 1:
                             continue
+                        # Kademeli İzin Günü Koruması
                         if (d % 7) == staggered_off_days[wid]:
                             continue
                         if cert in w['skills']:
                             cands.append(w)
                     if cands:
                         if is_mrv_lcv:
-                            # LCV: Joker ehliyetlileri sakla, izin gününü koru
+                            # LCV Sezgisi: Joker çok ehliyetlileri sakla, izin gününü koru
                             cands.sort(key=lambda x: (
                                 0 if x['posta'] == target_p else 1,
                                 1 if (x.get('pref_off', 0) == (d + 1)) else 0,
@@ -107,7 +114,9 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                             ))
                         assigned_shifts[k].append(cands[0])
                         
-            # FAZ 2: Kalan boş kadroları doldur
+            # -----------------------------------------------------------------
+            # FAZ 2: Kalan boş kadroları hedeflenen postaya göre doldur
+            # -----------------------------------------------------------------
             for k in [1, 2, 3]:
                 needed = shift_reqs[k]
                 target_p = target_posta_for_shift[k]
@@ -142,10 +151,10 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                         break
                     assigned_shifts[k].append(c)
         else:
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             # 1. SIRALI / MİYOPİK GREEDY MODU (Klasik ardışık doldurma)
             # İleriye bakış yapmaz, Gündüz -> Akşam -> Gece sırasıyla doldurur.
-            # -------------------------------------------------------------
+            # -----------------------------------------------------------------
             for k in [1, 2, 3]:
                 needed = shift_reqs[k]
                 target_p = target_posta_for_shift[k]
@@ -183,7 +192,9 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
                     if cand not in assigned_shifts[k]:
                         assigned_shifts[k].append(cand)
 
-        # Atamaları Çizelgeye Kaydet ve Durum Güncelle
+        # ---------------------------------------------------------------------
+        # 2.3 ATAMALARIN MATRİSE YAZILMASI VE ÇALIŞMA SAYILARININ GÜNCELLENMESİ
+        # ---------------------------------------------------------------------
         for k in [1, 2, 3]:
             assigned = assigned_shifts[k]
             for w in assigned:
@@ -200,13 +211,12 @@ def run_greedy_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights, solv
             else:
                 consecutive_work[wid] = 0
 
-    # Kişisel İzin Talepleri Detay Takibi (Merkezi Yardımcı Fonksiyon)
+    # =========================================================================
+    # 3. YUMUŞAK CEZA DEĞERLENDİRMESİ VE SERT KISIT DENETİMİ
+    # =========================================================================
     request_details = build_worker_request_details(schedule, workers, n_days, weights)
-    
-    # YUMUŞAK KISIT CEZALARI VE POSTA TAKIM BÜTÜNLÜĞÜ HESABI (MERKEZİ MOTOR)
     penalties, total_penalty = calculate_full_penalties(schedule, workers, n_workers, n_days, weights)
     
-    # Merkezi Sert Kısıt Denetim Uyumluluğu (Tek ve Kesin Kaynak)
     is_feasible, hard_violations_count, hard_violation_logs = audit_all_hard_constraints(
         schedule, workers, n_workers, n_days, {1: r_day, 2: r_eve, 3: r_night}
     )

@@ -73,20 +73,29 @@ def render_workload_chart(schedule, workers, key_prefix, title="Çalışan İş 
     num_workers = len(workers)
     work_days = [int(np.sum(schedule[i, :] > 0)) for i in range(num_workers)]
     night_days = [int(np.sum(schedule[i, :] == 3)) for i in range(num_workers)]
+    avg_work = np.mean(work_days) if num_workers > 0 else 0.0
 
     df_workload = pd.DataFrame({
         "İşçi": [w['name'] for w in workers],
-        "Toplam Çalışma": work_days,
-        "Gece Nöbeti": night_days
+        "Toplam Çalışma (Gün)": work_days,
+        "Gece Nöbeti (Gün)": night_days
     })
 
     fig = px.bar(
         df_workload,
         x="İşçi",
-        y=["Toplam Çalışma", "Gece Nöbeti"],
+        y=["Toplam Çalışma (Gün)", "Gece Nöbeti (Gün)"],
         barmode="group",
         color_discrete_sequence=color_seq
     )
+    if avg_work > 0:
+        fig.add_hline(
+            y=avg_work,
+            line_dash="dash",
+            line_color="#059669",
+            annotation_text=f"Hedef Ort. Çalışma: {avg_work:.1f} Gün",
+            annotation_position="top right"
+        )
     fig.update_layout(
         paper_bgcolor="#ffffff",
         plot_bgcolor="#f8fafc",
@@ -100,7 +109,7 @@ def render_workload_chart(schedule, workers, key_prefix, title="Çalışan İş 
 
 # 3. YUMUŞAK KISIT CEZA PUANI DAĞILIMI (YATAY BAR)
 def render_penalties_chart(penalties, key_prefix, title="Minimize Edilmiş Yumuşak Kısıt Cezaları (min Z)"):
-    """5 yumuşak kısıt türünden gelen ceza puanlarını yatay renkli bar grafiğinde görselleştirir."""
+    """6 yumuşak kısıt türünden gelen ceza puanlarını yatay renkli bar grafiğinde görselleştirir."""
     df_penalties = pd.DataFrame({
         "Kısıt Tipi": list(penalties.keys()),
         "Ceza Puanı": list(penalties.values())

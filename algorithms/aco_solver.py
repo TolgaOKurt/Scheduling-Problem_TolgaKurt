@@ -31,10 +31,13 @@ from algorithms.penalty_calculator import (
 from algorithms.solver_contract import finalize_solver_execution
 
 
+# =============================================================================
+# 1. SEZGİSEL GÖRÜNÜRLÜK MATRİSİ İNŞASI (HEURISTIC VISIBILITY: eta = 1/cost)
+# =============================================================================
 def _build_heuristic_visibility(workers: List[Dict[str, Any]], n_days: int) -> np.ndarray:
     """
     Her (işçi i, gün t, vardiya k) ataması için sezgisel görünürlük (eta) matrisini oluşturur.
-    eta[i, t, k] değeri ne kadar yüksekse, karıncanın o atamayı seçme eğilimi o kadar artar.
+    eta[i, t, k] değeri ne kadar yüksekse, karıncanın o atamayı seçme cazibesi o kadar artar.
     """
     n_workers = len(workers)
     eta = np.ones((n_workers, n_days, 4), dtype=float)
@@ -94,7 +97,9 @@ def run_ant_colony_optimization(
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
-    # 1. BAŞLANGIÇ TOHUMU (Single Source of Trust)
+    # =========================================================================
+    # 2. BAŞLANGIÇ TOHUMU VE FEROMON MATRİSİ İLKLENDİRMESİ (MMAS INITIALIZATION)
+    # =========================================================================
     greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=workers
     )
@@ -111,7 +116,7 @@ def run_ant_colony_optimization(
     best_schedule = initial_schedule.copy()
     best_score = initial_score
 
-    # 2. FEROMON VE SEZGİSEL MATRİSLERİN KURULMASI (Max-Min Ant System)
+    # Max-Min Ant System (MMAS) feromon sınırları
     tau_max = 5.0
     tau_min = 0.1
     tau_init = 1.0
@@ -126,16 +131,38 @@ def run_ant_colony_optimization(
     eta = _build_heuristic_visibility(workers, n_days)
 
     score_history = [float(best_score)]
+    iter_best_history = [float(best_score)]
+    iter_mean_history = [float(best_score)]
+    iter_worst_history = [float(best_score)]
+    
+    init_active = [pheromone[i, t, initial_schedule[i, t]] for i in range(n_workers) for t in range(n_days)]
+    init_inactive = [pheromone[i, t, k] for i in range(n_workers) for t in range(n_days) for k in range(4) if k != initial_schedule[i, t]]
+    
+    mean_pheromone_history = [round(float(np.mean(pheromone)), 4)]
+    active_pheromone_history = [round(float(np.mean(init_active)), 4)]
+    inactive_pheromone_history = [round(float(np.mean(init_inactive)), 4)]
+    std_pheromone_history = [round(float(np.std(pheromone)), 4)]
+    max_pheromone_history = [round(float(np.max(pheromone)), 4)]
+    min_pheromone_history = [round(float(np.min(pheromone)), 4)]
+
     eval_count = 1
     accepted_moves = 0
     total_ants_toured = 0
+    swap_prob_rejected = 0
+    swap_hard_rejected = 0
+    swap_accepted = 0
 
-    # 3. KARINCA DÖNGÜSÜ (ITERATION LOOP)
+    # =========================================================================
+    # 3. KARINCA KOLONİSİ İTERASYON DÖNGÜSÜ (ACO MAIN LOOP)
+    # =========================================================================
     for iteration in range(max_iterations):
         iter_best_schedule = None
         iter_best_score = float('inf')
+        ant_scores = []
 
-        # Karınca Popülasyonunun Çizelge İnşası ve Keşfi
+        # ---------------------------------------------------------------------
+        # 3.1 KARINCALARIN ÇİZELGE İNŞASI VE GEZİNTİSİ (ANT TOUR / SEARCH)
+        # ---------------------------------------------------------------------
         for ant_id in range(n_ants):
             total_ants_toured += 1
             ant_schedule = best_schedule.copy() if random.random() < 0.60 else initial_schedule.copy()
@@ -152,7 +179,9 @@ def run_ant_colony_optimization(
                 if s1 == s2:
                     continue
 
-                # Feromon ve sezgisel çekicilik hesabı
+                # -------------------------------------------------------------
+                # 3.2 FEROMON VE SEZGİSEL ÇEKİCİLİK HESABI (P = tau^alpha * eta^beta)
+                # -------------------------------------------------------------
                 desirability_new = (
                     (pheromone[w1, d, s2] ** alpha) * (eta[w1, d, s2] ** beta) *
                     (pheromone[w2, d, s1] ** alpha) * (eta[w2, d, s1] ** beta)
@@ -164,23 +193,41 @@ def run_ant_colony_optimization(
 
                 prob_swap = desirability_new / max(1e-6, (desirability_new + desirability_curr))
 
+                # Olasılıksal Geçiş Kararı
                 if random.random() < prob_swap:
-                    # Geçici takas uygulayıp sert kısıtları test et
+                    # ---------------------------------------------------------
+                    # 3.3 SERT KISIT UYGUNLUK TESTİ (FEASIBILITY CHECK)
+                    # ---------------------------------------------------------
                     ant_schedule[w1, d], ant_schedule[w2, d] = s2, s1
                     if check_swap_feasibility(ant_schedule, workers, d, w1, w2, n_workers, n_days, shift_reqs):
                         accepted_moves += 1
+                        swap_accepted += 1
                     else:
-                        ant_schedule[w1, d], ant_schedule[w2, d] = s1, s2  # Geri al
+                        ant_schedule[w1, d], ant_schedule[w2, d] = s1, s2  # Rollback
+                        swap_hard_rejected += 1
+                else:
+                    swap_prob_rejected += 1
 
-            # Karınca Çözümünü Değerlendir
+            # Karınca Çözümünün Skorlanması
             ant_score = fast_evaluate(ant_schedule)
             eval_count += 1
+            ant_scores.append(ant_score)
 
+            # İterasyonun En İyi Karıncası Tespiti
             if ant_score < iter_best_score:
                 iter_best_score = ant_score
                 iter_best_schedule = ant_schedule.copy()
 
-        # 4. DAEMON ACTIONS (Lokal İyileştirme / Local Search Refinement)
+        # İterasyon İstatistikleri (Koloni Dağılımı)
+        if ant_scores:
+            iter_best_history.append(float(min(ant_scores)))
+            iter_mean_history.append(round(float(np.mean(ant_scores)), 1))
+            iter_worst_history.append(float(max(ant_scores)))
+
+        # ---------------------------------------------------------------------
+        # 3.4 DAEMON ACTIONS (LOKAL İYİLEŞTİRME / 12 MİKRO-ONARIM ADIMI)
+        # ---------------------------------------------------------------------
+        # Koloninin o turdaki en başarılı karıncasına cerrahi mikro takaslar uygulanır
         if iter_best_schedule is not None:
             for _ in range(12):
                 d = random.randint(0, n_days - 1)
@@ -199,17 +246,22 @@ def run_ant_colony_optimization(
                     else:
                         iter_best_schedule[w1, d], iter_best_schedule[w2, d] = s1, s2
 
-            # Küresel En İyiyi Güncelle
+            # Küresel Şampiyonu Güncelle
             if iter_best_score < best_score:
                 best_score = iter_best_score
                 best_schedule = iter_best_schedule.copy()
 
         score_history.append(float(best_score))
 
-        # 5. FEROMON BUHARLAŞMASI (Pheromone Evaporation)
+        # ---------------------------------------------------------------------
+        # 3.5 FEROMON BUHARLAŞMASI (PHEROMONE EVAPORATION: tau = (1 - rho) * tau)
+        # ---------------------------------------------------------------------
         pheromone = (1.0 - evaporation_rate) * pheromone
 
-        # 6. FEROMON TAKVİYESİ (Pheromone Deposit - MMAS)
+        # ---------------------------------------------------------------------
+        # 3.6 FEROMON TAKVİYESİ (PHEROMONE DEPOSIT & MMAS CLAMPING)
+        # ---------------------------------------------------------------------
+        # İterasyonun ve Küresel En İyinin Patikalarına Feromon Takviyesi Yapılır
         if iter_best_schedule is not None:
             delta_tau_iter = q_deposit / max(1.0, float(iter_best_score))
             for i in range(n_workers):
@@ -223,8 +275,18 @@ def run_ant_colony_optimization(
                 k_best = best_schedule[i, t]
                 pheromone[i, t, k_best] += 0.6 * delta_tau_global
 
-        # Max-Min Sınırlarını Uygula (MMAS Bounding)
+        # Max-Min Feromon Sınırlandırması (MMAS Clamping: [tau_min, tau_max])
         pheromone = np.clip(pheromone, tau_min, tau_max)
+
+        cur_active = [pheromone[i, t, best_schedule[i, t]] for i in range(n_workers) for t in range(n_days)]
+        cur_inactive = [pheromone[i, t, k] for i in range(n_workers) for t in range(n_days) for k in range(4) if k != best_schedule[i, t]]
+
+        mean_pheromone_history.append(round(float(np.mean(pheromone)), 4))
+        active_pheromone_history.append(round(float(np.mean(cur_active)), 4))
+        inactive_pheromone_history.append(round(float(np.mean(cur_inactive)), 4))
+        std_pheromone_history.append(round(float(np.std(pheromone)), 4))
+        max_pheromone_history.append(round(float(np.max(pheromone)), 4))
+        min_pheromone_history.append(round(float(np.min(pheromone)), 4))
 
         # 7. CANLI STREAMLIT İLERLEME GERİ BİLDİRİMİ
         if callback:
@@ -244,6 +306,10 @@ def run_ant_colony_optimization(
             k = best_schedule[i, t]
             active_pheromone_matrix[i, t] = round(float(pheromone[i, t, k]), 3)
 
+    shift_labels = ["0: İzin (OFF)", "1: Gündüz (08-16)", "2: Akşam (16-24)", "3: Gece (24-08)"]
+    shift_pheromone_power = [round(float(np.mean(pheromone[:, :, k] ** alpha)), 3) for k in range(4)]
+    shift_heuristic_power = [round(float(np.mean(eta[:, :, k] ** beta)), 3) for k in range(4)]
+
     meta = {
         'seed_source': seed_source,
         'is_csp_fallback': is_csp_fallback,
@@ -255,7 +321,24 @@ def run_ant_colony_optimization(
         'alpha': alpha,
         'beta': beta,
         'active_pheromone_matrix': active_pheromone_matrix.tolist(),
-        'total_ants_toured': total_ants_toured
+        'total_ants_toured': total_ants_toured,
+        'iter_best_history': iter_best_history,
+        'iter_mean_history': iter_mean_history,
+        'iter_worst_history': iter_worst_history,
+        'mean_pheromone_history': mean_pheromone_history,
+        'active_pheromone_history': active_pheromone_history,
+        'inactive_pheromone_history': inactive_pheromone_history,
+        'std_pheromone_history': std_pheromone_history,
+        'max_pheromone_history': max_pheromone_history,
+        'min_pheromone_history': min_pheromone_history,
+        'shift_labels': shift_labels,
+        'shift_pheromone_power': shift_pheromone_power,
+        'shift_heuristic_power': shift_heuristic_power,
+        'swap_stats': {
+            'prob_rejected': swap_prob_rejected,
+            'hard_rejected': swap_hard_rejected,
+            'accepted': swap_accepted
+        }
     }
 
     return finalize_solver_execution(

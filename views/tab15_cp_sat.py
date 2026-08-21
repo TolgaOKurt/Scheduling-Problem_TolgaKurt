@@ -142,6 +142,25 @@ def render_tab15(params):
         import threading
         import queue
 
+        # 1. ÖNCE TEORİK ALT SINIR (LP RELAXATION) ARAMASI VE GÜNCELLEMESİ YAP
+        from algorithms.ilp_pulp_solver import compute_lp_relaxation_bound
+        active_workers = params.get('custom_workers') or params.get('workers')
+
+        with live_placeholder.container():
+            st.markdown("#### ⏳ 1. Aşama: Matematiksel Teorik Alt Sınır (LP Relaxation) Hesaplanıyor...")
+            st.info("🔍 Tamsayılık şartları gevşetiliyor, kısıt ağları taranıyor ve analitik alt sınır belirleniyor...")
+
+        theo_lb_pre, theo_breakdown_pre, _ = compute_lp_relaxation_bound(
+            n_workers=params['n_workers'],
+            n_days=params['n_days'],
+            r_day=params['r_day'],
+            r_eve=params['r_eve'],
+            r_night=params['r_night'],
+            weights=params['weights'],
+            workers=active_workers,
+            return_breakdown=True
+        )
+
         sol_queue = queue.Queue()
         def queue_cb(step, best_score, cur_score, msg):
             sol_queue.put({
@@ -162,7 +181,7 @@ def render_tab15(params):
                 weights=params['weights'],
                 time_limit=time_limit,
                 num_threads=num_threads,
-                custom_workers=params.get('workers'),
+                custom_workers=active_workers,
                 callback=queue_cb if live_stream else None,
                 stream_interval=1
             )
@@ -200,7 +219,7 @@ def render_tab15(params):
                     prog_text = f"🔄 %{int(pct*100)} Tamamlandı | Süre: {elapsed:.1f} sn / {time_limit:.0f} sn | 🏆 Bulunan Ara Çözüm: {sol_count_live} Adet"
                     st.progress(pct, text=prog_text)
 
-                    c1, c2, c3, c4 = st.columns(4)
+                    c1, c2, c3, c4, c5 = st.columns(5)
                     with c1:
                         st.markdown(f"""<div class="metric-card">
                         <div class="metric-label">Başlangıç Skoru</div>
@@ -208,19 +227,24 @@ def render_tab15(params):
                         </div>""", unsafe_allow_html=True)
                     with c2:
                         st.markdown(f"""<div class="metric-card">
+                        <div class="metric-label">Teorik Alt Sınır (LP)</div>
+                        <div class="metric-value" style="color: #7c3aed;">{theo_lb_pre:g} Puan</div>
+                        </div>""", unsafe_allow_html=True)
+                    with c3:
+                        st.markdown(f"""<div class="metric-card">
                         <div class="metric-label">Paralel Çekirdek</div>
                         <div class="metric-value" style="color: #2563eb;">{num_threads} Threads</div>
                         </div>""", unsafe_allow_html=True)
-                    with c3:
+                    with c4:
                         st.markdown(f"""<div class="metric-card">
                         <div class="metric-label">Anlık En İyi Skor</div>
                         <div class="metric-value" style="color: #059669;">{best_score_live if best_score_live is not None else '-'} 🎯</div>
                         </div>""", unsafe_allow_html=True)
-                    with c4:
+                    with c5:
                         drop_val = max(0, (initial_score_live - best_score_live)) if (initial_score_live and best_score_live) else 0
                         st.markdown(f"""<div class="metric-card">
                         <div class="metric-label">İyileşme</div>
-                        <div class="metric-value" style="color: #7c3aed;">-{drop_val} Puan</div>
+                        <div class="metric-value" style="color: #d97706;">-{drop_val} Puan</div>
                         </div>""", unsafe_allow_html=True)
 
                     if len(history_x) > 1:
@@ -237,7 +261,7 @@ def render_tab15(params):
             st.markdown("#### ⚡ Google CP-SAT Optimizasyon Özeti (Arama Tamamlandı)")
             st.progress(1.0, text=f"✅ %100 Tamamlandı | Toplam Süre: {total_time:.2f} sn | 🏆 Toplam {final_solutions} Ara Çözüm Keşfedildi")
 
-            c1, c2, c3, c4 = st.columns(4)
+            c1, c2, c3, c4, c5 = st.columns(5)
             with c1:
                 st.markdown(f"""<div class="metric-card">
                 <div class="metric-label">Başlangıç Skoru</div>
@@ -245,19 +269,24 @@ def render_tab15(params):
                 </div>""", unsafe_allow_html=True)
             with c2:
                 st.markdown(f"""<div class="metric-card">
+                <div class="metric-label">Teorik Alt Sınır (LP)</div>
+                <div class="metric-value" style="color: #7c3aed;">{theo_lb_pre:g} Puan</div>
+                </div>""", unsafe_allow_html=True)
+            with c3:
+                st.markdown(f"""<div class="metric-card">
                 <div class="metric-label">Paralel Çekirdek</div>
                 <div class="metric-value" style="color: #2563eb;">{num_threads} Threads</div>
                 </div>""", unsafe_allow_html=True)
-            with c3:
+            with c4:
                 st.markdown(f"""<div class="metric-card">
                 <div class="metric-label">Nihai Skor</div>
                 <div class="metric-value" style="color: #059669;">{results.get('final_score', '-')} 🎯</div>
                 </div>""", unsafe_allow_html=True)
-            with c4:
+            with c5:
                 drop_fin = max(0, (results.get('initial_score', 0) - results.get('final_score', 0)))
                 st.markdown(f"""<div class="metric-card">
                 <div class="metric-label">Toplam İyileşme</div>
-                <div class="metric-value" style="color: #7c3aed;">-{drop_fin} Puan (%{results.get('improvement_rate', 0)})</div>
+                <div class="metric-value" style="color: #d97706;">-{drop_fin} Puan (%{results.get('improvement_rate', 0)})</div>
                 </div>""", unsafe_allow_html=True)
 
         results['stream_summary_data'] = {
@@ -269,38 +298,45 @@ def render_tab15(params):
             'improvement_rate': results.get('improvement_rate')
         }
         st.session_state["res_t15"] = results
-    elif "res_t15" in st.session_state:
-        results = st.session_state["res_t15"]
-        summary = results.get('stream_summary_data')
-        if live_stream and summary:
-            with live_placeholder.container():
-                st.markdown("#### ⚡ Google CP-SAT Optimizasyon Özeti (Önceki Çalıştırma)")
-                st.progress(1.0, text=f"✅ %100 Tamamlandı | Toplam Süre: {summary['total_time']:.2f} sn | 🏆 Toplam {summary['solutions_found']} Ara Çözüm Keşfedildi")
-                c1, c2, c3, c4 = st.columns(4)
-                with c1:
-                    st.markdown(f"""<div class="metric-card">
-                    <div class="metric-label">Başlangıç Skoru</div>
-                    <div class="metric-value" style="color: #64748b;">{summary['initial_score']}</div>
-                    </div>""", unsafe_allow_html=True)
-                with c2:
-                    st.markdown(f"""<div class="metric-card">
-                    <div class="metric-label">Paralel Çekirdek</div>
-                    <div class="metric-value" style="color: #2563eb;">{summary['num_threads']} Threads</div>
-                    </div>""", unsafe_allow_html=True)
-                with c3:
-                    st.markdown(f"""<div class="metric-card">
-                    <div class="metric-label">Nihai Skor</div>
-                    <div class="metric-value" style="color: #059669;">{summary['final_score']} 🎯</div>
-                    </div>""", unsafe_allow_html=True)
-                with c4:
-                    drop_s = max(0, (summary['initial_score'] - summary['final_score']))
-                    st.markdown(f"""<div class="metric-card">
-                    <div class="metric-label">Toplam İyileşme</div>
-                    <div class="metric-value" style="color: #7c3aed;">-{drop_s} Puan (%{summary['improvement_rate']})</div>
-                    </div>""", unsafe_allow_html=True)
     else:
-        st.warning("👈 Google CP-SAT Optimizasyonunu başlatmak için yukarıdaki **'⚡ Google CP-SAT Optimizasyonunu Başlat'** butonuna basınız.")
-        return
+        has_valid_cp = (
+            "res_t15" in st.session_state and 
+            isinstance(st.session_state["res_t15"], dict) and 
+            isinstance(st.session_state["res_t15"].get('schedule'), np.ndarray) and 
+            st.session_state["res_t15"]['schedule'].shape == (params['n_workers'], params['n_days'])
+        )
+        if has_valid_cp:
+            results = st.session_state["res_t15"]
+            summary = results.get('stream_summary_data')
+            if live_stream and summary:
+                with live_placeholder.container():
+                    st.markdown("#### ⚡ Google CP-SAT Optimizasyon Özeti (Önceki Çalıştırma)")
+                    st.progress(1.0, text=f"✅ %100 Tamamlandı | Toplam Süre: {summary['total_time']:.2f} sn | 🏆 Toplam {summary['solutions_found']} Ara Çözüm Keşfedildi")
+                    c1, c2, c3, c4 = st.columns(4)
+                    with c1:
+                        st.markdown(f"""<div class="metric-card">
+                        <div class="metric-label">Başlangıç Skoru</div>
+                        <div class="metric-value" style="color: #64748b;">{summary['initial_score']}</div>
+                        </div>""", unsafe_allow_html=True)
+                    with c2:
+                        st.markdown(f"""<div class="metric-card">
+                        <div class="metric-label">Paralel Çekirdek</div>
+                        <div class="metric-value" style="color: #2563eb;">{summary['num_threads']} Threads</div>
+                        </div>""", unsafe_allow_html=True)
+                    with c3:
+                        st.markdown(f"""<div class="metric-card">
+                        <div class="metric-label">Nihai Skor</div>
+                        <div class="metric-value" style="color: #059669;">{summary['final_score']} 🎯</div>
+                        </div>""", unsafe_allow_html=True)
+                    with c4:
+                        drop_s = max(0, (summary['initial_score'] - summary['final_score']))
+                        st.markdown(f"""<div class="metric-card">
+                        <div class="metric-label">Toplam İyileşme</div>
+                        <div class="metric-value" style="color: #7c3aed;">-{drop_s} Puan (%{summary['improvement_rate']})</div>
+                        </div>""", unsafe_allow_html=True)
+        else:
+            st.warning("👈 Google CP-SAT Optimizasyonunu başlatmak için yukarıdaki **'⚡ Google CP-SAT Optimizasyonunu Başlat'** butonuna basınız.")
+            return
 
     # ==============================================================================
     # 4. SONUÇLAR VE ANALİTİK GÖSTERGELERİ
@@ -335,7 +371,7 @@ def render_tab15(params):
     """, unsafe_allow_html=True)
 
     # Analitik Teorik Alt Sınır (LP Relaxation) Dinamik Hesaplama
-    active_workers = results.get('workers') or params.get('custom_workers') or params.get('workers')
+    active_workers = params.get('custom_workers') or results.get('workers')
     theo_lb_err = None
     try:
         from algorithms.ilp_pulp_solver import compute_lp_relaxation_bound
@@ -392,17 +428,20 @@ def render_tab15(params):
     m_c1.metric("🏆 Bulunan Ara Çözüm", f"{meta.get('solutions_found', 1):,} Adet")
     m_c2.metric("🎯 Kanıtlanan Alt Sınır", f"{best_bound:g} Puan", help="Google CP-SAT'ın arama ağacında imkansız dalları budayarak aşağıdan ördüğü dinamik matematiksel duvar.")
     theo_lb_txt = f"{theo_lb:g} Puan" if theo_lb is not None else "Hesaplanamadı"
-    m_c3.metric("📌 Teorik Alt Sınır (LP)", theo_lb_txt, help="Tamsayılık şartı kaldırıldığında (LP Relaxation) hesaplanan mutlak fiziksel taban.")
+    m_c3.metric("📌 Teorik Alt Sınır (2-Aşama)", theo_lb_txt, help="1. Aşama (Analitik Bölünemezlik) ve 2. Aşama (Sürekli LP) sentezinden doğan mutlak fiziksel taban.")
     m_c4.metric("🛑 Çatışma / Madde (Conflicts)", f"{meta.get('conflicts', 0):,}")
     m_c5.metric("⏱️ Hesaplama Süresi", f"{results.get('exec_time_ms', 0)} ms")
 
     # İki Alt Sınır Arasındaki Farkı Açıklayan Bilgilendirme Kartı
     theo_txt_card = f"{theo_lb:g} Puan" if theo_lb is not None else "Hesaplanamadı"
-    st.markdown(f"""
-    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #059669; border-radius: 6px; padding: 12px 16px; margin: 10px 0 16px 0; font-size: 0.88rem; color: #166534; line-height: 1.5;">
-        <b>🧱 Alt Sınır Göstergeleri Arasındaki Fark (Teorik vs. Kanıtlanan):</b><br>
-        • <b>📌 Teorik Alt Sınır (LP Gevşetme = {theo_txt_card}):</b> Tamsayılık şartı ortadan kalktığında (kesirli evrende) kısıtların inebileceği en dip analitik tabandır (Temel arsa seviyesi).<br>
-        • <b>🎯 Kanıtlanan Alt Sınır (Best Bound = {best_bound:g} Puan):</b> Google CP-SAT'ın arama sürerken çelişkileri öğrenip imkansız dalları budayarak <b>aşağıdan yukarıya doğru ördüğü matematiksel duvardır</b>. Arama ilerledikçe bu duvar yukarı tırmanır; optimum kanıtlandığında (%0 Gap) yukarıdan inen tavanla (en iyi çözümle) tam çakışır.
+    st.markdown(rf"""
+    <div style="background-color: #f0fdf4; border: 1px solid #bbf7d0; border-left: 4px solid #059669; border-radius: 6px; padding: 14px 18px; margin: 10px 0 16px 0; font-size: 0.88rem; color: #166534; line-height: 1.55;">
+        <b>🧱 Alt Sınır Göstergeleri Arasındaki Fark (2-Aşamalı Teorik Alt Sınır vs. CP-SAT Kanıtlanan Sınır):</b><br>
+        • <b>📌 2-Aşamalı Birleşik Teorik Alt Sınır (max(Analitik, LP) = {theo_txt_card}):</b><br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<b>1️⃣ Aşama (Analitik Kaçınılmazlık Tabanı):</b> Gece nöbetinin işçi sayısına tam bölünememesi (Güvercin Yuvası İlkesi), usta kapasite açığı ve izin yığılmasından doğan fiziksel kaçınılmazlık tabanıdır.<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<b>2️⃣ Aşama (Sürekli LP Gevşetmesi):</b> Tamsayılık şartı gevşetilerek (x ∈ [0, 1]) kısıt ağlarının sürekli uzayda Simplex ile taranmasıdır.<br>
+        &nbsp;&nbsp;&nbsp;&nbsp;<i>Modelimiz bu iki aşamanın en güçlüsünü (max) alarak aşılması imkansız mutlak fiziksel tabanı belirler.</i><br>
+        • <b>🎯 Kanıtlanan Alt Sınır (Best Bound = {best_bound:g} Puan):</b> Google CP-SAT'ın tamsayılı arama sürerken çelişkileri öğrenip imkansız dalları budayarak <b>aşağıdan yukarıya doğru ördüğü matematiksel duvardır</b>. Optimum kanıtlandığında (%0 Gap) yukarıdan inen tavanla (en iyi çözümle) tam çakışır.
     </div>
     """, unsafe_allow_html=True)
 

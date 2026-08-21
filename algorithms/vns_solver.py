@@ -155,7 +155,10 @@ def run_variable_neighborhood_search(
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
         
-    # 1. Başlangıç Çözümü: En İyi Greedy Çözümü (Best-of-Heuristics Seed)
+    # =========================================================================
+    # 1. BAŞLANGIÇ ÇÖZÜMÜ ÜRETİMİ (INITIAL SOLUTION / WARM-START)
+    # =========================================================================
+    # Sert kısıtları %100 sağlayan en kaliteli Greedy (Yapıcı Sezgisel) çizelgesi başlangıç noktası alınır.
     greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights,
         custom_workers=custom_workers
@@ -164,6 +167,9 @@ def run_variable_neighborhood_search(
     current_penalties, current_score = calculate_full_penalties(current_schedule, workers, n_workers, n_days, weights)
     eval_count = 1
     
+    # =========================================================================
+    # 2. EN İYİ (CHAMPION) ÇÖZÜM HAFIZASI VE İSTATİSTİKSEL TAKİP
+    # =========================================================================
     best_schedule = current_schedule.copy()
     best_score = current_score
     initial_score = current_score
@@ -180,11 +186,15 @@ def run_variable_neighborhood_search(
     if callback:
         callback(0, best_score, current_score, f"| Komşuluk: N_{k_neigh}")
         
-    # 2. VNS Ana İterasyon Döngüsü
+    # =========================================================================
+    # 3. VNS ANA İTERASYON DÖNGÜSÜ (MAIN VNS LOOP)
+    # =========================================================================
     for it in range(1, max_iterations + 1):
-        # -------------------------------------------------------------
-        # ADIM 1: SHAKING (ÇALKALAMA - N_k Komşuluğundan Rastgele Örnekleme)
-        # -------------------------------------------------------------
+        # ---------------------------------------------------------------------
+        # ADIM 1: SHAKING (ÇALKALAMA / SARSMA - N_k Komşuluğundan Rastgele Sıçrama)
+        # ---------------------------------------------------------------------
+        # Mevcut yerel optimum çukurundan (local minima) kurtulmak amacıyla k_neigh
+        # hiyerarşisindeki operatör (N_1 Mikro, N_2 Mezo, N_3 Makro) ile rastgele sarsılır.
         neighborhood_usage[k_neigh] = neighborhood_usage.get(k_neigh, 0) + 1
         neighborhood_history.append(k_neigh)
         
@@ -198,9 +208,10 @@ def run_variable_neighborhood_search(
         else: # k_neigh >= 3
             shaken_sched, applied = _apply_n3_macro_posta_swap(shaken_sched, workers, n_workers, n_days, shift_reqs)
             
-        # -------------------------------------------------------------
-        # ADIM 2: LOCAL SEARCH (LOKAL İYİLEŞTİRME - VND / Micro Descent)
-        # -------------------------------------------------------------
+        # ---------------------------------------------------------------------
+        # ADIM 2: LOCAL SEARCH (LOKAL İYİLEŞTİRME / YEREL İNİŞ - Variable Neighborhood Descent)
+        # ---------------------------------------------------------------------
+        # Çalkalanan yeni çözüm taban alınarak 'local_search_depth' adım boyunca mikro iniş yapılır.
         refined_sched = shaken_sched.copy()
         _, refined_score = calculate_full_penalties(refined_sched, workers, n_workers, n_days, weights)
         eval_count += 1
@@ -214,9 +225,11 @@ def run_variable_neighborhood_search(
                     refined_sched = cand_sched
                     refined_score = cand_score
                     
-        # -------------------------------------------------------------
+        # ---------------------------------------------------------------------
         # ADIM 3: NEIGHBORHOOD CHANGE (KOMŞULUK DEĞİŞTİRME MEKANİZMASI)
-        # -------------------------------------------------------------
+        # ---------------------------------------------------------------------
+        # Durum 1: Eğer lokal iniş sonucu elde edilen çözüm mevcut çözümü geliştirdiyse:
+        # Başarılı kaçış kaydedilir ve komşuluk en hassas arama seviyesi olan N_1'e (Mikro) geri döner!
         if refined_score < current_score:
             current_schedule = refined_sched.copy()
             current_score = refined_score
@@ -229,10 +242,11 @@ def run_variable_neighborhood_search(
                 if callback:
                     callback(it, best_score, current_score, f"| N_{k_neigh} İyileştirdi!")
                     
-            # Başarılı olunca en küçük komşuluğa (N_1) geri dön!
+            # Başarılı olunca en küçük komşuluğa (N_1) geri dön
             k_neigh = 1
         else:
-            # İyileşme olmadıysa bir sonraki daha geniş komşuluğa geç
+            # Durum 2: Eğer bu komşuluk yapısında gelişme olmadıysa, daha geniş bir arama uzayı
+            # sunan bir üst komşuluk düzeyine (N_1 -> N_2 -> N_3) geçilir!
             k_neigh += 1
             if k_neigh > max_neighborhoods:
                 k_neigh = 1

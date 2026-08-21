@@ -145,36 +145,48 @@ def render_tab_comparison(params):
 
     st.divider()
 
-    # --- SESSION STATE SONUÇLARINI TOPLAMA ---
+    # --- SESSION STATE SONUÇLARINI TOPLAMA & BOYUT DOĞRULAMA ---
     workers = custom_workers if (custom_workers is not None and len(custom_workers) == num_workers) else generate_worker_profiles(num_workers, num_days, randomize=False)
+    expected_shape = (num_workers, num_days)
+
+    def _get_valid_solver_result(key):
+        res = st.session_state.get(key)
+        if not res or not isinstance(res, dict):
+            return None
+        sched = res.get('schedule')
+        if sched is None or not isinstance(sched, np.ndarray):
+            return None
+        if sched.shape != expected_shape:
+            return None
+        return res
 
     # 1. Greedy Çözücüleri (3 Farklı Yaklaşım)
-    res_g1 = st.session_state.get('res_t4_myopic')
+    res_g1 = _get_valid_solver_result('res_t4_myopic')
     if not res_g1:
         res_g1 = run_greedy_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, solver_mode="1. Sıralı / Miyopik Açgözlü Sezgisel (Sequential Myopic Greedy)", custom_workers=workers)
         st.session_state['res_t4_myopic'] = res_g1
 
-    res_g2 = st.session_state.get('res_t4_staggered')
+    res_g2 = _get_valid_solver_result('res_t4_staggered')
     if not res_g2:
         res_g2 = run_greedy_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, solver_mode="2. Kademeli / Desen Tabanlı Yapıcı Sezgisel (Staggered Pattern-Based Greedy)", custom_workers=workers)
         st.session_state['res_t4_staggered'] = res_g2
 
-    res_g3 = st.session_state.get('res_t4_mrv')
+    res_g3 = _get_valid_solver_result('res_t4_mrv')
     if not res_g3:
         res_g3 = run_greedy_algorithm(num_workers, num_days, req_day, req_eve, req_night, weights, solver_mode="3. Kısıt Öncelikli Sezgisel (MRV / LCV Tabanlı Heuristic)", custom_workers=workers)
         st.session_state['res_t4_mrv'] = res_g3
 
-    res5 = st.session_state.get('res_t5')
-    res6 = st.session_state.get('res_t6')
-    res7 = st.session_state.get('res_t7')
-    res8 = st.session_state.get('res_t8')
-    res9 = st.session_state.get('res_t9')
-    res10 = st.session_state.get('res_t10')
-    res11 = st.session_state.get('res_t11')
-    res12 = st.session_state.get('res_t12')
-    res13 = st.session_state.get('res_t13')
-    res14 = st.session_state.get('res_t14')
-    res15 = st.session_state.get('res_t15')
+    res5 = _get_valid_solver_result('res_t5')
+    res6 = _get_valid_solver_result('res_t6')
+    res7 = _get_valid_solver_result('res_t7')
+    res8 = _get_valid_solver_result('res_t8')
+    res9 = _get_valid_solver_result('res_t9')
+    res10 = _get_valid_solver_result('res_t10')
+    res11 = _get_valid_solver_result('res_t11')
+    res12 = _get_valid_solver_result('res_t12')
+    res13 = _get_valid_solver_result('res_t13')
+    res14 = _get_valid_solver_result('res_t14')
+    res15 = _get_valid_solver_result('res_t15')
 
     # --- TEORİK ALT SINIR (THEORETICAL LOWER BOUND / BEST BOUND) ---
     try:
@@ -1290,7 +1302,10 @@ def render_tab_comparison(params):
             Konsensüs oranı %100 olan hücreler, problemin matematiksel yapısı gereği tüm sezgisel ve matematiksel modellerin **kesin olarak aynı vardiyaya mecbur kaldığı kilit düğümleri** gösterir.
             """)
 
-            ran_schedules = [sol['schedule'] for sol in available_solvers.values() if sol and 'schedule' in sol]
+            ran_schedules = [
+                sol['schedule'] for sol in available_solvers.values()
+                if sol and 'schedule' in sol and isinstance(sol['schedule'], np.ndarray) and sol['schedule'].shape == (num_workers, num_days)
+            ]
             if len(ran_schedules) >= 3:
                 stacked = np.stack(ran_schedules, axis=0) # (K, N, D)
                 k_solvers = stacked.shape[0]

@@ -1,0 +1,127 @@
+
+======================================================================
+1. Çelik Sektörü 4 Posta 3 Vardiya Çalışma Sistemi & Dinamikleri
+======================================================================
+Açıklama: Çelik sektöründe kesintisiz üretimin (7/24) 4 posta 3 vardiya sistemi ile nasıl yürüdüğü, postaların dinlenme/çalışma döngüleri ve neden esnek çizelgeleme gerektiği bilgisi.
+Bulunduğu Dosya Sayısı: 3
+Dosyalar:
+  - views\tab2_industries.py            (Eşleşme sıklığı:  12 | Anahtar Kelimeler: ['4 posta', '3 vardiya', 'Sürekli döküm', 'Yüksek fırın'])
+  - views\tab3_steel_model.py           (Eşleşme sıklığı:  12 | Anahtar Kelimeler: ['4 posta', '3 vardiya', 'Sürekli döküm', 'Yüksek fırın'])
+  - global_state.py                     (Eşleşme sıklığı:   5 | Anahtar Kelimeler: ['Sürekli döküm', 'Yüksek fırın', 'Haddehane'])
+
+======================================================================
+2. Sert Kısıtların (Hard Constraints - HC1..HC5) Açıklamaları
+======================================================================
+Açıklama: Kanuni ve operasyonel sert kısıtlar (Günde maks 1 vardiya, vardiyalar arası min 11 saat dinlenme, 4 kritik MYK sertifikası şartı, haftalık izin zorunluluğu) birden çok sekmede tekrar tekrar açıklanıyor.
+Bulunduğu Dosya Sayısı: 4
+Dosyalar:
+  - views\tab3_steel_model.py           (Eşleşme sıklığı:   9 | Anahtar Kelimeler: ['11 saat dinlenme', '4 MYK', 'Kritik MYK'])
+  - global_state.py                     (Eşleşme sıklığı:   4 | Anahtar Kelimeler: ['4 MYK', 'asgari kadro'])
+  - views\tab12_vns.py                  (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['11 saat dinlenme', '4 MYK'])
+  - algorithms\worker_manager.py        (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['4 MYK', 'Kritik MYK'])
+
+======================================================================
+3. Yumuşak Kısıtlar ve Ceza Puanları (SC1..SC5 / min Z Formülasyonu)
+======================================================================
+Açıklama: Yumuşak kısıtların ceza katsayıları (1000, 500, 100, 50, 20 puan) ve matematiksel amaç fonksiyonu formülü (min Z) hem teorik sekmelerde hem de her çözücünün kendi sekmesinde listeleniyor.
+Bulunduğu Dosya Sayısı: 31
+Dosyalar:
+  - views\tab_comparison.py             (Eşleşme sıklığı:  69 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\common_components.py          (Eşleşme sıklığı:  50 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\tab14_aco.py                  (Eşleşme sıklığı:  29 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - views\tab6_ilp_optimization.py      (Eşleşme sıklığı:  25 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\tab8_simulated_annealing.py   (Eşleşme sıklığı:  22 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - global_state.py                     (Eşleşme sıklığı:  20 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - algorithms\ilp_pulp_solver.py       (Eşleşme sıklığı:  19 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - views\tab7_hill_climbing.py         (Eşleşme sıklığı:  17 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\tab12_vns.py                  (Eşleşme sıklığı:  14 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\tab10_memetic_algorithm.py    (Eşleşme sıklığı:  13 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - views\tab3_steel_model.py           (Eşleşme sıklığı:  13 | Anahtar Kelimeler: ['500', '100', '50', '20'])
+  - views\tab5_csp_backtracking.py      (Eşleşme sıklığı:  13 | Anahtar Kelimeler: ['500', '100', '50'])
+  - views\tab13_pso.py                  (Eşleşme sıklığı:  12 | Anahtar Kelimeler: ['100', '50', '20'])
+  - views\tab1_nsp_intro.py             (Eşleşme sıklığı:  12 | Anahtar Kelimeler: ['100', '50', '20', 'İzin talepleri'])
+  - views\tab9_genetic_algorithm.py     (Eşleşme sıklığı:  11 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - views\tab11_tabu_search.py          (Eşleşme sıklığı:  10 | Anahtar Kelimeler: ['1000', '100', '50', '20'])
+  - views\tab15_cp_sat.py               (Eşleşme sıklığı:  10 | Anahtar Kelimeler: ['1000', '100', '20', 'min Z'])
+  - algorithms\cp_sat_solver.py         (Eşleşme sıklığı:   9 | Anahtar Kelimeler: ['1000', '100', '50', 'İzin talepleri'])
+  - algorithms\tabu_search_solver.py    (Eşleşme sıklığı:   9 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - algorithms\hill_climbing_solver.py  (Eşleşme sıklığı:   8 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - views\tab4_simulation.py            (Eşleşme sıklığı:   7 | Anahtar Kelimeler: ['100', 'İzin talepleri'])
+  - algorithms\csp_backtracking_solver.py (Eşleşme sıklığı:   7 | Anahtar Kelimeler: ['1000', '100', '50'])
+  - algorithms\greedy_solver.py         (Eşleşme sıklığı:   7 | Anahtar Kelimeler: ['1000', '500', '100', '50'])
+  - algorithms\simulated_annealing_solver.py (Eşleşme sıklığı:   6 | Anahtar Kelimeler: ['1000', '100', '50'])
+  - algorithms\genetic_algorithm_solver.py (Eşleşme sıklığı:   5 | Anahtar Kelimeler: ['1000', '100', '50'])
+  - algorithms\memetic_algorithm_solver.py (Eşleşme sıklığı:   5 | Anahtar Kelimeler: ['1000', '100', '50'])
+  - algorithms\pso_solver.py            (Eşleşme sıklığı:   4 | Anahtar Kelimeler: ['100', '20'])
+  - algorithms\aco_solver.py            (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['100', '20'])
+  - algorithms\penalty_calculator.py    (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['100', '50'])
+  - algorithms\solver_contract.py       (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['1000', '100'])
+  - algorithms\vns_solver.py            (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['1000', '100', '20'])
+
+======================================================================
+4. Algoritmaların Teorik Çalışma Prensipleri & 'Ne Yapar / Nasıl Çalışır' Kartları
+======================================================================
+Açıklama: Her bir algoritmanın (Greedy, CSP, ILP, Hill Climbing, SA, GA, Memetic, Tabu Search, VNS, PSO, ACO, CP-SAT) teorik tanımı ve mekanizması hem kendi sekmesindeki info kartlarında hem de Sekme Karşılaştırma (tab_comparison) teorik matrisinde/tablolarında yineleniyor.
+Bulunduğu Dosya Sayısı: 12
+Dosyalar:
+  - views\tab12_vns.py                  (Eşleşme sıklığı:  14 | Anahtar Kelimeler: ['Lokal Arama', 'Komşuluk Yapısı', 'Mutasyon', 'Çaprazlama'])
+  - views\tab_comparison.py             (Eşleşme sıklığı:   9 | Anahtar Kelimeler: ['Çaprazlama', 'MIP Gap', 'Arama Uzayı'])
+  - views\tab9_genetic_algorithm.py     (Eşleşme sıklığı:   7 | Anahtar Kelimeler: ['Mutasyon', 'Çaprazlama'])
+  - views\tab10_memetic_algorithm.py    (Eşleşme sıklığı:   6 | Anahtar Kelimeler: ['Lokal Arama', 'Mutasyon', 'Çaprazlama'])
+  - views\tab13_pso.py                  (Eşleşme sıklığı:   6 | Anahtar Kelimeler: ['Çaprazlama', 'Arama Uzayı'])
+  - algorithms\memetic_algorithm_solver.py (Eşleşme sıklığı:   5 | Anahtar Kelimeler: ['Lokal Arama', 'Çaprazlama'])
+  - algorithms\evolutionary_engine.py   (Eşleşme sıklığı:   4 | Anahtar Kelimeler: ['Mutasyon', 'Çaprazlama'])
+  - algorithms\vns_solver.py            (Eşleşme sıklığı:   4 | Anahtar Kelimeler: ['Komşuluk Yapısı', 'Arama Uzayı'])
+  - views\tab6_ilp_optimization.py      (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['MIP Gap', 'Arama Uzayı'])
+  - algorithms\genetic_algorithm_solver.py (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['Mutasyon', 'Çaprazlama'])
+  - views\common_components.py          (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['Mutasyon', 'Çaprazlama'])
+  - views\tab11_tabu_search.py          (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['Mutasyon', 'Arama Uzayı'])
+
+======================================================================
+5. Ön-Analiz / Tahmini Ceza Değerlendirme Çağrısı (Evaluator CPU Maliyeti) Rozetleri ve Formülü
+======================================================================
+Açıklama: Her iteratif metasezgiselin çalıştırma butonu üstünde ceza hesaplama formülü (örneğin ~10,000 çağrı x 0.015 ms = saf CPU süresi) ve formül açıklaması ortak fonksiyon ve benzer metinlerle 8+ sekmede yer alıyor.
+Bulunduğu Dosya Sayısı: 11
+Dosyalar:
+  - views\common_components.py          (Eşleşme sıklığı:   9 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'render_preanalysis_prediction_card', 'Tahmini Ceza Değerlendirme', 'Birim Maliyet'])
+  - views\tab10_memetic_algorithm.py    (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab11_tabu_search.py          (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab12_vns.py                  (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab13_pso.py                  (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab14_aco.py                  (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab4_simulation.py            (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab5_csp_backtracking.py      (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab7_hill_climbing.py         (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab8_simulated_annealing.py   (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+  - views\tab9_genetic_algorithm.py     (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['render_evaluator_cost_badge', 'Tahmini Ceza Değerlendirme'])
+
+======================================================================
+6. Eşitlik / Adillik Metrikleri (Gini Katsayısı, Shannon Entropisi, Standart Sapma)
+======================================================================
+Açıklama: İş yükü ve gece vardiyası dağılımının ne kadar adil olduğunu ölçen Gini, Shannon ve Standart Sapma metriklerinin ne anlama geldiği, nasıl yorumlanacağı neredeyse tüm çözücü sekmelerinin sonuç alanında ve karşılaştırma sekmesinde tekrarlanıyor.
+Bulunduğu Dosya Sayısı: 0
+Dosyalar:
+
+======================================================================
+7. Vardiya Kodları & Çizelge Lejant Açıklaması (0=İzin, 1=Sabah, 2=Akşam, 3=Gece)
+======================================================================
+Açıklama: Vardiya matrislerinin altındaki lejant / açıklama metinleri ve renk kodları her çizelge görselleştirmesinde tekrar ediliyor.
+Bulunduğu Dosya Sayısı: 6
+Dosyalar:
+  - views\tab14_aco.py                  (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['0: İzin', '2: Akşam', '3: Gece'])
+  - views\tab3_steel_model.py           (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['0: İzin', '2: Akşam', '3: Gece'])
+  - algorithms\aco_solver.py            (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['0: İzin', '2: Akşam', '3: Gece'])
+  - algorithms\cp_sat_solver.py         (Eşleşme sıklığı:   3 | Anahtar Kelimeler: ['2: Akşam', '3: Gece'])
+  - views\tab5_csp_backtracking.py      (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['2: Akşam', '3: Gece'])
+  - algorithms\greedy_solver.py         (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['2: Akşam', '3: Gece'])
+
+======================================================================
+8. Çözücü Durum / Başarı / Kısıt Uygunluk Mesajları (Standart UI Şablonları)
+======================================================================
+Açıklama: Her çözücünün sonuç ekranındaki bildirim kutuları, kısıt başarı yüzdeleri ve bitirme nedenleri birebir aynı format ve benzer kalıplarla tekrarlanıyor.
+Bulunduğu Dosya Sayısı: 4
+Dosyalar:
+  - views\common_components.py          (Eşleşme sıklığı:   5 | Anahtar Kelimeler: ['Sert Kısıt Uygunluğu', '%100 GEÇERLİ ÇÖZÜM', 'Otomatik Kısıt Kurtarma Bildirimi'])
+  - views\tab11_tabu_search.py          (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['Çözücünün Çalışmayı Bitirme Nedeni', 'Sert Kısıt Uygunluğu'])
+  - views\tab12_vns.py                  (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['Çözücünün Çalışmayı Bitirme Nedeni', 'Sert Kısıt Uygunluğu'])
+  - views\tab13_pso.py                  (Eşleşme sıklığı:   2 | Anahtar Kelimeler: ['Çözücünün Çalışmayı Bitirme Nedeni', 'Sert Kısıt Uygunluğu'])

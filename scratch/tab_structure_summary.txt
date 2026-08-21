@@ -1,0 +1,327 @@
+================================================================================
+FILE: views\tab10_memetic_algorithm.py
+================================================================================
+HEADERS:
+  ## 🏆 Sekme 10: Memetic Algorithm (Hibrit Genetik + Yerel Tırmanma Çözücüsü)")
+  ### 🎛️ Memetik Algoritma Hibrit Parametre Kontrol Paneli")
+  #### 🧮 Evrimsel & Hibrit Değerlendirme Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Memetik Algoritma Evrimsel Yakınsama & Analitik Grafikler")
+  #### 1️⃣ Jenerasyon Bazlı Memetik Yakınsama Grafiği (Best vs Avg Score)")
+  #### 2️⃣ Popülasyon Genetik Çeşitlilik İndeksi (Standart Sapma)")
+
+CARD TITLES:
+  - 🧠 Genetik Arama + Lokal Cerrahi Tamir (Memetik Mantığı)
+  - 🏆 Neden Saf Genetik Algoritmadan Çok Daha Üstündür?
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab11_tabu_search.py
+================================================================================
+HEADERS:
+  ## 🤫 Sekme 11: Tabu Search (Tabu Araması & Hafıza Tabanlı Metasezgisel Optimizasyon)")
+  ### 🚀 Tabu Search Yönteminin Diğer Metasezgisellere Göre 4 Temel Üstünlüğü")
+  ### 🎛️ Tabu Search Hafıza & Komşuluk Parametre Kontrol Paneli")
+  #### 🧮 Tabu Arama & Komşuluk Değerlendirme Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Tabu Search Yakınsama & Analitik Grafikler")
+  #### 1️⃣ İterasyon Bazlı Tabu Arama & Vadi Aşımı Grafiği (Best vs Current Score)")
+  #### 2️⃣ Aktif Tabu Listesi Boyutu & Aspirasyon Tetiklenme Noktaları")
+
+CARD TITLES:
+  - 🧠 Kısa & Uzun Vadeli Hafıza Mekanizması (Tabu Listesi)
+  - 🎯 Aspirasyon Kriteri (Aspiration Criterion) & Vadi Aşımı
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab12_vns.py
+================================================================================
+HEADERS:
+  ## 🔄 Sekme 12: Variable Neighborhood Search (VNS - Değişken Komşuluk Araması)")
+  ### ⚖️ VNS'in Güçlü Yanları, Sınırları ve Diğer Algoritmalarla Karşılaştırması")
+  #### 🔍 VNS'in Diğer 7 Algoritma Karşısındaki Konumu:")
+  ### 🎛️ VNS İterasyon & Komşuluk Parametre Kontrol Paneli")
+  #### 🧮 VNS Arama & Değerlendirme Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Variable Neighborhood Search (VNS) Yakınsama & Analitik Grafikler")
+  #### 1️⃣ İterasyon Bazlı VNS Yakınsama & Vadi Aşımı Grafiği (Best vs Current Score)")
+  #### 2️⃣ Hiyerarşik Komşulukların Başarı ve İyileştirme Dağılımı")
+
+CARD TITLES:
+  - 🎯 3 Temel VNS İlkesi ve Çalışma Döngüsü
+  - 🏗️ Çelik Tesis Modeli İçin 3 Hiyerarşik Komşuluk Yapısı
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab13_pso.py
+================================================================================
+HEADERS:
+  ## 🐝 Sekme 13: Particle Swarm Optimization (Discrete PSO - Parçacık Sürü Zekası)")
+  #### 🧮 Kesikli Parçacık Sürü Zekası Matematiksel Güncelleme Denklemleri:")
+  ### ⚖️ Discrete PSO'nun Güçlü Yanları, Sınırları ve Diğer Algoritmalarla Kıyaslaması")
+  #### 🔍 PSO'nun Diğer Metasezgisel Algoritmalar Karşısındaki Konumu:")
+  ### 🎛️ PSO Sürü Büyüklüğü & Davranış Katsayıları Kontrol Paneli")
+  #### 🧮 PSO Arama & Değerlendirme Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Particle Swarm Optimization (PSO) Yakınsama & Analitik Grafikler")
+  #### 1️⃣ Sürü Yakınsama & Kolektif Öğrenme Grafiği (Küresel En İyi vs Sürü Ortalaması)")
+  #### 2️⃣ Sürü Parçacıklarının Bireysel En İyi (p_best) Ceza Puanı Dağılımı")
+
+CARD TITLES:
+  - 🐝 3 Temel Sürü Bileşeni ve Dinamiği
+  - 🏗️ Vardiya Problemi İçin Kesikli (Discrete) PSO Dönüşümü
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab14_aco.py
+================================================================================
+HEADERS:
+  ## 🐜 Sekme 14: Ant Colony Optimization (ACO - Karınca Kolonisi Optimizasyonu)")
+  #### 🧮 Karınca Kolonisi Optimizasyonu Matematiksel Güncelleme Denklemleri:")
+  ### ⚖️ Ant Colony Optimization (ACO) Güçlü Yanları, Sınırları ve Mühendislik Dengesi")
+  ### 🎛️ Karınca Kolonisi Hiperparametreleri")
+  #### 🧮 Karınca Kolonisi Değerlendirme & Süre Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Karınca Kolonisi Analitik Grafikleri & İç Dinamik Analizi")
+  #### 1️⃣ 🐜 Koloni Çeşitlilik Bandı (Best vs. Mean vs. Worst Ant)")
+  #### 2️⃣ 📈 Feromon Dinamikleri: Aktif vs. Terk Edilen Patikalar")
+  #### 3️⃣ ⚖️ Feromon Hafızası (τᵅ) vs. Sezgisel Cazibe (ηᵝ) Güç Dengesi")
+  #### 4️⃣ 🎯 Karınca Takas Karar Dağılımı & Sert Kısıt Kabul Oranı")
+  #### 5️⃣ 🐜 Koloni Feromon Yoğunluk Matrisi (Pheromone Trail Heatmap)")
+
+CARD TITLES:
+  - 🐜 3 Temel Karınca Kolonisi Mekanizması
+  - 🏗️ Vardiya Problemi İçin Çizge & Matris ACO Modeli
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab15_cp_sat.py
+================================================================================
+HEADERS:
+  ## ⚡ Sekme 15: Constraint Programming / CP-SAT (Google OR-Tools)")
+  #### 🧮 Google CP-SAT Mantıksal ve Matematiksel Kısıt Modeli:")
+  ### ⚖️ Kesin Matematiksel Yöntemler Karşılaştırma Matrisi")
+  ### 🎛️ Google CP-SAT Optimizasyon Parametreleri")
+  #### ⏳ 1. Aşama: Matematiksel Teorik Alt Sınır (LP Relaxation) Hesaplanıyor...")
+  #### ⚡ Google CP-SAT Çok Çekirdekli Paralel Portföy Arama")
+  #### ⚡ Google CP-SAT Optimizasyon Özeti (Arama Tamamlandı)")
+  #### ⚡ Google CP-SAT Optimizasyon Özeti (Önceki Çalıştırma)")
+  ### 📊 Google CP-SAT Optimizasyon Sonuçları & Analitik Raporu")
+  #### 📈 CP-SAT Çözüm Gelişim ve Yakınsama Eğrisi:")
+
+CARD TITLES:
+  - 🧠 3 Temel CP-SAT Teknolojisi
+  - 🚀 Çok Çekirdekli Paralel Portföy Arama (LNS)
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab1_nsp_intro.py
+================================================================================
+HEADERS:
+  ## 📖 Sekme 1: Hemşire Çizelgeleme Problemi (NSP / NRP) Nedir?")
+  ### ⚖️ Kısıt Mimarisi: Sert (Hard) vs. Yumuşak (Soft) Kısıtlar")
+  ### 🧩 NP-Hard Karmaşıklık ve Arama Uzayının Boyutu")
+  ### 🔄 NSP Optimizasyon Süreci: 4 Aşamalı Karar Mekanizması")
+
+CARD TITLES:
+  - 🎯 Problemin Temel Amacı ve Optimizasyon Boyutları
+  - ⏳ Tarihsel Gelişim ve Literatür
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab2_industries.py
+================================================================================
+HEADERS:
+  ## 🏭 Sekme 2: NSP Modelinin Sanayi ve Endüstri Sektörlerindeki Kullanımı")
+  ### 📊 Sektörler Arası Kısıt ve Dinamik Karşılaştırma Matrisi")
+  ### 📈 Sektörlere Göre Vardiya ve Kısıt Hassasiyet Analizi")
+
+CARD TITLES:
+  - ⚡ 1. Elektrik & Enerji Sektörü
+  - ✈️ 2. Ulaşım, Havacılık & Lojistik
+  - 🏗️ 3. Çelik & Ağır Metal Sanayi
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab3_steel_model.py
+================================================================================
+HEADERS:
+  ## 🏗️ Sekme 3: Çelik ve Metal Sanayisi Çizelgeleme Kısıtları & Matematiksel Modeli (MILP)")
+  ### 🏭 1. Çelik ve Metal Sanayisinin Özel Operasyonel Dinamikleri")
+  ### ⚖️ 2. Çelik Tesis Modeli: 5 Sert (Hard) ve 5 Yumuşak (Soft) Kısıt Yapısı")
+  ## 📐 3. Çelik Sanayisi Vardiya Optimizasyonu Matematiksel Modeli (MILP)")
+  ### 3.1. Kümeler, İndeksler ve Karar Değişkenleri")
+  #### İkili Karar Değişkeni (Binary Decision Variable):")
+  ### 3.2. Amaç Fonksiyonu (Objective Function - Ağırlıklı Ceza Minimizasyonu)")
+  ### 3.3. Matematiksel Sert Kısıt Denklem Kümeleri (Hard Constraints)")
+  ### 3.4. Matematiksel Yumuşak Kısıt Doğrusallaştırma Denklemleri (Soft Constraints)")
+  ### 3.5. Teorik Alt Sınır (Continuous LP Relaxation Best Bound) & MIP Gap Nedir?")
+
+CARD TITLES:
+  - 🔥 1.1. Termal Süreçler & Yüksek Fırın Duruş Yasağı
+  - 👥 1.2. 4 Posta Sürekli Çalışma Sistemi (A, B, C, D)
+  - 🪪 1.3. Kritik MYK Sertifika & Ehliyet Zorunlulukları
+  - ⚖️ 1.4. Yasal Mevzuat & İSG Standartları
+  - <span class="badge-hard">ZORUNLU</span> 5 Sert Kısıt (Hard Constraints)
+  - <span class="badge-soft">ESNEK</span> 5 Yumuşak Kısıt (Soft Constraints)
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab4_simulation.py
+================================================================================
+HEADERS:
+  ## ⚡ Sekme 4: Yapıcı Sezgiseller (Constructive / Greedy Heuristics) Vardiya Simülasyonu")
+  ### 🎛️ Yapıcı Sezgisel (Greedy) Çözüm Modunu Seçin")
+  #### 🧮 Hesaplama Yükü & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+  ### 📊 Kişisel İzin Talepleri Yüzdesel Karşılanma & İhlal Analizi")
+  ### 🎨 Görsel Gösterimler ve Posta Takım Bütünlüğü Analizleri")
+  #### 1️⃣ Vardiya Dağılım Matrisi Isı Haritası (Heatmap)")
+  #### 2️⃣ Toplam Vardiya Türü Dağılım Oranı (Pie Chart)")
+
+CARD TITLES:
+  - 🧩 Yapıcı Sezgisel (Constructive Heuristic) Çerçevesi
+  - ⚖️ Literatürdeki 3 Temel Yapıcı Yaklaşım Modu
+  - ℹ️ İzin Karşılanma Performans Özeti
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab5_csp_backtracking.py
+================================================================================
+HEADERS:
+  ## 🔍 Sekme 5: Backtracking / Constraint Satisfaction Problem (CSP) Yaklaşımı")
+  ### 🎛️ Backtracking / CSP Arama Limiti Kontrolü")
+  #### 🧮 Arama Ağacı Boyutu & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+  #### ⚡ CSP Backtracking Arama Ağacı Taraması (Kısıt Tatmin Durumu)")
+  ### 🎨 Backtracking CSP Çözüm Grafikleri & Ceza Analizi")
+
+CARD TITLES:
+  - 🧩 CSP Çerçevesi (Değişkenler & Kümeler)
+  - ⚡ Sezgisel Yönlendirme (Heuristics)
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab6_ilp_optimization.py
+================================================================================
+HEADERS:
+  ## 🎯 Sekme 6: Integer Linear Programming (ILP / MILP - Tam Sayılı Programlama)")
+  ### 🧮 MILP Solver Tarafından Optimize Edilen Amaç Fonksiyonu (Objective Function)")
+  ### 🎛️ ILP / MILP Solver Zaman Limiti Kontrolü")
+  #### 🧮 MILP Matematiksel Model Boyutu & Karmaşıklık Paneli (Ön-Analiz)")
+  #### 🎯 Matematiksel Teorik Alt Sınır Hesaplama Detayı (2-Aşamalı Analiz)")
+  ### 📊 3 Temel Yaklaşımın Bütüncül Karşılaştırma Matrisi (Greedy vs. CSP vs. ILP)")
+  ### 🎨 ILP / MILP Matematiksel Optimizasyon Grafikleri & Yakınsama Analizi")
+  #### 1️⃣ Branch-and-Bound Zamana Göre Ceza Skoru İyileşme & Yakınsama Grafiği (Convergence Curve)")
+
+CARD TITLES:
+  - 📐 ILP / MILP Matematiksel Model Çerçevesi
+  - 🏆 Küresel Optimizasyon (min Z)
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab7_hill_climbing.py
+================================================================================
+HEADERS:
+  ## 🏔️ Sekme 7: Hill Climbing / Local Search (Tepeden Tırmanma & Yöresel Arama)")
+  ### 🚀 Metasezgisel (Hill Climbing) Yönteminin ILP / MILP'e Göre 4 Temel Üstünlüğü")
+  ### 🎛️ Hill Climbing İterasyon Kontrolü")
+  #### 🧮 İterasyon & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+  ### 📊 Gelişmiş Yaklaşımların Bütüncül Karşılaştırma Matrisi (CSP vs. ILP vs. Hill Climbing)")
+  ### 🎨 Hill Climbing Local Search Grafikleri & Yakınsama Analizi")
+  #### 1️⃣ İterasyon Bazlı Ceza Puanı Düşüş & Yakınsama Eğrisi (Convergence Curve)")
+
+CARD TITLES:
+  - 🔄 Komşuluk Operatörleri (Neighborhood Search)
+  - 📈 Yakınsama & Yerel Optimum (Local Optimum)
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab8_simulated_annealing.py
+================================================================================
+HEADERS:
+  ## ♨️ Sekme 8: Simulated Annealing (Tavlama Benzetimi & Stokastik Arama)")
+  ### 🎛️ Simulated Annealing Parametre Kontrol Paneli")
+  #### 🧮 Sıcaklık Parametrelerine Göre İterasyon Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Simulated Annealing İterasyon, Sıcaklık & Yakınsama Grafikleri")
+  #### 1️⃣ İterasyon Bazlı Anlık Skor, En İyi Skor ve Sıcaklık T(k) Yakınsama Grafiği (Double Y-Axis)")
+  #### 2️⃣ Sıcaklık Soğuma ve Dinamik Metropolis Kabul Oranı Eğrisi (Temperature Decay vs Acceptance Rate)")
+
+CARD TITLES:
+  - 🔥 Metalurjik Tavlama Analojisi & Sıcaklık (T)
+  - ❄️ Geometrik Soğuma (&alpha;) & Kararlı Yerleşim
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab9_genetic_algorithm.py
+================================================================================
+HEADERS:
+  ## 🧬 Sekme 9: Genetic Algorithm (Genetik Algoritma & Evrimsel Arama)")
+  ### 🎛️ Genetik Algoritma Evrimsel Parametre Kontrol Paneli")
+  #### 🧮 Evrimsel Hesaplama & Ceza Değerlendirici Tahmin Paneli (Ön-Analiz)")
+  ### 🎨 Genetik Algoritma Evrimsel Yakınsama & Analitik Grafikler")
+  #### 1️⃣ Jenerasyon Bazlı Evrimsel Yakınsama Grafiği (Best vs Avg Score)")
+  #### 2️⃣ Popülasyon Genetik Çeşitlilik İndeksi (Standart Sapma)")
+
+CARD TITLES:
+  - 🧬 Biyolojik Evrim Analojisi & Kromozom Yapısı
+  - 🧬 Çaprazlama (Crossover), Mutasyon & Elitizm
+
+ALERT BOX LABELS:
+
+
+================================================================================
+FILE: views\tab_comparison.py
+================================================================================
+HEADERS:
+  ### 🚀 Canlı Benchmark & Karşılaştırma Merkezi")
+  ### 🏆 Canlı Algoritma Skor Tablosu & Liderlik Panosu")
+  #### 📌 Kısıt Bazında Alt Sınır Puanları:")
+  #### 🧮 Matematiksel ve Fiziksel Kaçınılmazlık Nedenleri:")
+  #### ⚡ 1. Yapıcı Sezgiseller (Greedy Heuristics - 3 Literatür Yaklaşımı)")
+  #### 🏛️ 2. Kısıt Tatmin & Matematiksel Kesin Çözücüler (Sekme 5, 6 & 15)")
+  #### 🧬 3. Metasezgisel Optimizasyon Çözücüleri (Sekme 7, 8, 9, 10, 11, 12, 13, 14)")
+  ### 📊 Çözücülerin Canlı Grafiksel Kıyaslama Analizi")
+  #### 1️⃣ Toplam Ceza Puanı Karşılaştırması & Teorik Alt Sınır (min Z - Düşük Olan İyidir)")
+  #### 2️⃣ Hesaplama Süresi Karşılaştırması (CPU ms)")
+  #### 3️⃣ Ceza Hesaplama Çağrı Sayısı (Evaluator Calls - Logaritmik Ölçek)")
+  #### 4️⃣ Çözücülerin Ceza Türü Dağılımı ve Kırılımı (Penalty Breakdown)")
+  #### 📋 Canlı Benchmark & Teorik Alt Sınıra Göre Sapma (Optimality Gap) Tablosu")
+  ### 🏛️ Bölüm 1: Çözücü Sınıflandırması & 3 Temel Paradigmanın Bütüncül Karşılaştırması")
+  #### 📊 3 Temel Yaklaşımın (Matematiksel vs. Sezgisel vs. Metasezgisel) Makro Karşılaştırma Matrisi")
+  #### 🎯 3 Temel Yaklaşım İçin En İdeal Kullanım Alanları ve Karar Kılavuzu")
+  ### ⚖️ Bölüm 1.1: Matematiksel Çözücülerin Kıyası: Sekme 6 (ILP / MILP) vs. Sekme 15 (Google CP-SAT)")
+  #### 📊 Sekme 6 (ILP / PuLP CBC) vs. Sekme 15 (Google CP-SAT) Karşılaştırma Matrisi")
+  ### ⚡ Bölüm 2: Sezgisel (Heuristic) Yöntemlerin Kendi Arasında Karşılaştırması")
+  ### 🧬 Bölüm 3: Metasezgisel (Metaheuristic) Yöntemlerin Kendi Arasında Karşılaştırması (8-Yönlü Objektif Mühendislik Matrisi)")
+  ### 📚 Bölüm 3.1: Algoritmaların Çıkış Kökeni, Başarı Alanları & Çelik NSP Başarısızlık/Zorlanma Nedenleri")
+  ### 🔬 Bölüm 4: Çözücü Karşılaştırmalı Vardiya & İzin Mutabakatı (Schedule Alignment & Consensus Matrix)")
+  #### 🗺️ Karşılaştırmalı Vardiya & İzin Mutabakat Haritası (Overlay Matrix)")
+  #### 🌐 Tüm Çalıştırılmış Çözücülerin Konsensüs (Ortak Akıl) Analizi")
+
+CARD TITLES:
+
+ALERT BOX LABELS:
+
+

@@ -35,17 +35,22 @@ def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
-    # Base Greedy Çözümü (Best-of-Heuristics ile En İyi Greedy Çözümü)
+    # =========================================================================
+    # 1. BAŞLANGIÇ POPÜLASYONU ÜRETİMİ (POPULATION INITIALIZATION & WARM-START)
+    # =========================================================================
+    # 1. Birey olarak en iyi Greedy çözümü alınır; kalan (pop_size - 1) birey
+    # geçerli swap mutasyonları ile çeşitlendirilerek popülasyon oluşturulur.
     greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=custom_workers
     )
     greedy_sched = greedy_seed['schedule']
     workers = greedy_seed['workers']
 
-    # 1. Popülasyon İlklendirmesi (Merkezi Evrimsel Motor)
     population = initialize_population(greedy_sched, pop_size, n_workers, n_days, workers, shift_reqs)
 
-    # Popülasyonun Evrim Öncesi İlk Skorlarını Değerlendir
+    # =========================================================================
+    # 2. BAŞLANGIÇ UYGUNLUK (FITNESS) DEĞERLENDİRMESİ
+    # =========================================================================
     eval_count = 0
     initial_scores = []
     for chrom in population:
@@ -65,14 +70,20 @@ def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     if callback:
         callback(0, best_score, initial_baseline_score, f"| Pop: {pop_size}")
 
-    # 2. Evrimsel Jenerasyon Döngüsü (Generations Loop)
+    # =========================================================================
+    # 3. EVRİMSEL JENERASYON DÖNGÜSÜ (EVOLUTIONARY GENERATIONS LOOP)
+    # =========================================================================
     for gen in range(generations):
+        # ---------------------------------------------------------------------
+        # 3.1 TÜM POPÜLASYONUN DEĞERLENDİRİLMESİ (FITNESS EVALUATION)
+        # ---------------------------------------------------------------------
         scores = []
         for chrom in population:
             _, score = calculate_full_penalties(chrom, workers, n_workers, n_days, weights)
             eval_count += 1
             scores.append(score)
 
+        # Şampiyon kromozom kontrolü ve güncellemesi
         min_idx = np.argmin(scores)
         if scores[min_idx] < best_score:
             best_score = scores[min_idx]
@@ -87,31 +98,40 @@ def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
         if callback and (gen % max(1, stream_interval) == 0):
             callback(gen + 1, best_score, float(np.mean(scores)), f"| Ort: {np.mean(scores):.0f}")
 
+        # Kromozomları başarı sırasına göre diz (Fitness Ranking)
         sorted_indices = np.argsort(scores)
         sorted_pop = [population[idx] for idx in sorted_indices]
 
-        # Elitizm (En iyi e bireyi koru)
+        # ---------------------------------------------------------------------
+        # 3.2 ELİTİZM OPERATÖRÜ (ELITISM SELECTION)
+        # ---------------------------------------------------------------------
+        # Popülasyonun en iyi 'elitism_count' adet şampiyonu hiçbir mutasyon veya
+        # çaprazlamaya maruz kalmadan doğrudan bir sonraki nesle aktarılır.
         next_population = []
         for e in range(min(elitism_count, pop_size)):
             next_population.append(sorted_pop[e].copy())
 
-        # Crossover & Mutation
+        # ---------------------------------------------------------------------
+        # 3.3 SEÇİM, ÇAPRAZLAMA VE MUTASYON DÖNGÜSÜ (CROSSOVER & MUTATION REPRODUCTION)
+        # ---------------------------------------------------------------------
         while len(next_population) < pop_size:
+            # Turnuva Seçimi: En uygun ebeveynler seçilir (Tournament Selection)
             p1 = tournament_selection(population, scores, k=3)
             p2 = tournament_selection(population, scores, k=3)
 
             child = p1.copy()
 
-            # Gün bazlı Çaprazlama (Crossover)
+            # Gün Bazlı Çaprazlama (Day-wise Cut-and-Cross Crossover)
             if random.random() < crossover_rate:
                 split_day = random.randint(1, n_days - 1)
                 child_candidate = child.copy()
                 child_candidate[:, split_day:] = p2[:, split_day:]
+                # Çaprazlama sonrası sert kısıt uygunluk denetimi
                 cand_feasible, _, _ = audit_all_hard_constraints(child_candidate, workers, n_workers, n_days, shift_reqs)
                 if cand_feasible:
                     child = child_candidate
 
-            # Mutasyon (Mutation)
+            # Takas Mutasyonu (Feasible Swap Mutation)
             if random.random() < mutation_rate:
                 for _ in range(random.randint(1, 3)):
                     mut_day = random.randint(0, n_days - 1)
@@ -119,13 +139,18 @@ def run_genetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
                     if child[w1, mut_day] != child[w2, mut_day]:
                         temp_child = child.copy()
                         temp_child[w1, mut_day], temp_child[w2, mut_day] = temp_child[w2, mut_day], temp_child[w1, mut_day]
+                        # Sert kısıt kontrolü
                         if check_swap_feasibility(temp_child, workers, mut_day, w1, w2, n_workers, n_days, shift_reqs):
                             child = temp_child
 
             next_population.append(child)
 
+        # Yeni nesle geçiş
         population = next_population
 
+    # =========================================================================
+    # 4. NİHAİ EN İYİ ÇÖZÜMÜN DOĞRULANMASI VE RAPORLANMASI
+    # =========================================================================
     final_penalties, final_score = calculate_full_penalties(best_chromosome, workers, n_workers, n_days, weights)
     eval_count += 1
     

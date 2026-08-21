@@ -18,11 +18,14 @@ from algorithms.evolutionary_engine import initialize_population, tournament_sel
 from algorithms.solver_contract import build_standard_solver_result
 
 
+# =============================================================================
+# 1. MEMETİK BİREYSEL İYİLEŞTİRME OPERATÖRÜ (LOCAL SEARCH REFINEMENT)
+# =============================================================================
 def local_search_refinement(chromosome, workers, n_workers, n_days, shift_reqs, weights, depth=5, eval_tracker=None):
     """
-    Memetik Bireysel İyileştirme (Hill Climbing Refinement):
-    Çaprazlama sonrası oluşan çocuk kromozoma nokta atışı mikro takaslar uygulayarak 
-    çaprazlama dikiş noktalarında kırılan sirkadiyen/posta kurallarını lokal olarak tamir eder.
+    Memetik Bireysel Öğrenme / Lokal Arama (Lamarckian Learning Refinement):
+    Çaprazlama ve mutasyon sonrası oluşan çocuk bireye 'depth' adım boyunca
+    geçerli mikro-takaslar uygulayarak dikiş noktalarındaki kırılmaları cerrahi olarak onarır.
     """
     current = chromosome.copy()
     _, current_score = calculate_full_penalties(current, workers, n_workers, n_days, weights)
@@ -30,15 +33,18 @@ def local_search_refinement(chromosome, workers, n_workers, n_days, shift_reqs, 
         eval_tracker[0] += 1
     
     for _ in range(depth):
+        # Rastgele gün ve 2 işçi seçimi (Mikro Komşuluk Swap)
         d = random.randint(0, n_days - 1)
         w1, w2 = random.sample(range(n_workers), 2)
         if current[w1, d] != current[w2, d]:
             cand = current.copy()
             cand[w1, d], cand[w2, d] = cand[w2, d], cand[w1, d]
+            # Sert kısıt kontrolü
             if check_swap_feasibility(cand, workers, d, w1, w2, n_workers, n_days, shift_reqs):
                 _, cand_score = calculate_full_penalties(cand, workers, n_workers, n_days, weights)
                 if eval_tracker is not None:
                     eval_tracker[0] += 1
+                # Açgözlü iniş: Sadece iyileşme varsa yerel öğrenme kalıcı hale gelir (Lamarckian)
                 if cand_score < current_score:
                     current = cand
                     current_score = cand_score
@@ -64,20 +70,23 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
-    # Base Greedy Çözümü (Best-of-Heuristics ile En İyi Greedy Çözümü)
+    # =========================================================================
+    # 2. BAŞLANGIÇ POPÜLASYONU ÜRETİMİ VE LOKAL ÖN-İYİLEŞTİRME
+    # =========================================================================
     greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=custom_workers
     )
     greedy_sched = greedy_seed['schedule']
     workers = greedy_seed['workers']
 
-    # 1. Popülasyon İlklendirmesi (Merkezi Evrimsel Motor)
+    # Başlangıç popülasyonu üretilir ve her birey 3 adımlık yerel aramayla cilalanır
     base_population = initialize_population(greedy_sched, pop_size, n_workers, n_days, workers, shift_reqs)
     population = []
     for chrom in base_population:
         chrom_refined = local_search_refinement(chrom, workers, n_workers, n_days, shift_reqs, weights, depth=3, eval_tracker=eval_tracker)
         population.append(chrom_refined)
 
+    # İlk fitness skorlarının hesaplanması
     initial_scores = []
     for chrom in population:
         _, score = calculate_full_penalties(chrom, workers, n_workers, n_days, weights)
@@ -96,14 +105,20 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
     if callback:
         callback(0, best_score, initial_baseline_score, f"| Pop: {pop_size}")
 
-    # 2. Evrimsel & Memetik İyileştirme Döngüsü
+    # =========================================================================
+    # 3. HİBRİT EVRİMSEL JENERASYON DÖNGÜSÜ (MEMETIC GENERATIONS LOOP)
+    # =========================================================================
     for gen in range(generations):
+        # ---------------------------------------------------------------------
+        # 3.1 POPÜLASYON UYGUNLUK DEĞERLENDİRMESİ
+        # ---------------------------------------------------------------------
         scores = []
         for chrom in population:
             _, score = calculate_full_penalties(chrom, workers, n_workers, n_days, weights)
             eval_tracker[0] += 1
             scores.append(score)
 
+        # Şampiyon kromozom kontrolü ve güncellemesi
         min_idx = np.argmin(scores)
         if scores[min_idx] < best_score:
             best_score = scores[min_idx]
@@ -118,21 +133,28 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
         if callback and (gen % max(1, stream_interval) == 0):
             callback(gen + 1, best_score, float(np.mean(scores)), f"| Ort: {np.mean(scores):.0f}")
 
+        # Sıralama
         sorted_indices = np.argsort(scores)
         sorted_pop = [population[idx] for idx in sorted_indices]
 
-        # Elitizm (En iyi e bireyi koru)
+        # ---------------------------------------------------------------------
+        # 3.2 ELİTİZM OPERATÖRÜ (ELITISM PRESERVATION)
+        # ---------------------------------------------------------------------
         next_population = []
         for e in range(min(elitism_count, pop_size)):
             next_population.append(sorted_pop[e].copy())
 
-        # Crossover, Mutation & Memetic Local Search Refinement
+        # ---------------------------------------------------------------------
+        # 3.3 ÇAPRAZLAMA, MUTASYON VE MEMETİK LOKAL TAMİR
+        # ---------------------------------------------------------------------
         while len(next_population) < pop_size:
+            # Turnuva Seçimi
             p1 = tournament_selection(population, scores, k=3)
             p2 = tournament_selection(population, scores, k=3)
 
             child = p1.copy()
 
+            # Gün Bazlı Çaprazlama
             if random.random() < crossover_rate:
                 split_day = random.randint(1, n_days - 1)
                 child_candidate = child.copy()
@@ -141,6 +163,7 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
                 if cand_feasible:
                     child = child_candidate
 
+            # Takas Mutasyonu
             if random.random() < mutation_rate:
                 for _ in range(random.randint(1, 3)):
                     mut_day = random.randint(0, n_days - 1)
@@ -151,7 +174,10 @@ def run_memetic_algorithm(n_workers, n_days, r_day, r_eve, r_night, weights,
                         if check_swap_feasibility(temp_child, workers, mut_day, w1, w2, n_workers, n_days, shift_reqs):
                             child = temp_child
 
-            # Memetik Lokal Cerrahi Tamir (Lokal Arama Adımı)
+            # -----------------------------------------------------------------
+            # 3.4 MEMETİK BİREYSEL ÖĞRENME (LAMARCKIAN LOCAL REFINEMENT)
+            # -----------------------------------------------------------------
+            # Çocuk birey 'local_search_depth' adımlık yerel tırmanmayla onarılır ve kromozomuna işlenir
             child = local_search_refinement(child, workers, n_workers, n_days, shift_reqs, weights, depth=local_search_depth, eval_tracker=eval_tracker)
             next_population.append(child)
 

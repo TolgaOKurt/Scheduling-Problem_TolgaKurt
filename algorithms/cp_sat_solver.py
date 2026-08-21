@@ -106,8 +106,10 @@ def solve_cp_sat(
     # 1. CP-SAT Model Nesnesi
     model = cp_model.CpModel()
 
-    # 2. KARAR DEĞİŞKENLERİ
-    # x[i, t, k] == 1 <=> i işçisi t gününde k vardiyasında
+    # =========================================================================
+    # 1. KARAR DEĞİŞKENLERİ TANIMI (BOOLEAN DECISION VARIABLES)
+    # =========================================================================
+    # x[i, t, k] == 1 <=> i işçisi t gününde k vardiyasına atanırsa
     x = {}
     for i in range(n_workers):
         for t in range(n_days):
@@ -115,10 +117,10 @@ def solve_cp_sat(
                 x[i, t, k] = model.NewBoolVar(f"x_{i}_{t}_{k}")
 
     # =========================================================================
-    # 3. SERT KISITLAR (HARD CONSTRAINTS - %100 Sağlanması Zorunlu)
+    # 2. SERT KISITLAR (HARD CONSTRAINTS - %100 SAĞLANMASI ZORUNLU KANUNİ KISITLAR)
     # =========================================================================
     
-    # H1: Günde Tam 1 Vardiya (Gündüz, Akşam, Gece veya OFF)
+    # H1: Günde Tam 1 Vardiya (Gündüz, Akşam, Gece veya OFF - ExactlyOne)
     for i in range(n_workers):
         for t in range(n_days):
             model.AddExactlyOne([x[i, t, k] for k in shifts])
@@ -128,7 +130,7 @@ def solve_cp_sat(
         for k in [1, 2, 3]:
             model.Add(sum(x[i, t, k] for i in range(n_workers)) == shift_reqs[k])
 
-    # H3: Kritik 4 MYK Sertifikası Zorunluluğu (Vinç, Potacı, Döküm, Gaz)
+    # H3: Kritik 4 MYK Sertifikası Zorunluluğu (Vinç, Potacı, Döküm, Gaz İzleme)
     req_certs = ['Vinç Operatörü', 'Potacı', 'Sıcak Metal Döküm Uzmanı', 'Gaz İzleme Sorumlusu']
     for cert in req_certs:
         cert_wids = [w['id'] for w in workers if cert in w.get('skills', set())]
@@ -148,7 +150,7 @@ def solve_cp_sat(
             model.Add(sum(x[i, tau, 0] for tau in range(t, t + 7)) >= 1)
 
     # =========================================================================
-    # 4. YUMUŞAK KISITLAR & CEZA DEĞİŞKENLERİ (SOFT PENALTIES)
+    # 3. YUMUŞAK KISITLAR & CEZA DOĞRUSALLAŞTIRMALARI (SOFT PENALTIES)
     # =========================================================================
     # CP-SAT tamsayı (integer) motoru olduğundan, kesirli ortalama sapmasını (35/28 = 1.25)
     # ILP / LP Relaxation ile birebir (%100) eşitlemek için tüm amaç fonksiyonu N ile ölçeklenir.
@@ -156,6 +158,7 @@ def solve_cp_sat(
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night = weights.get('night_imb', 25)
+    w_workload = weights.get('workload_imb', weights.get('workload', 20))
     w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
@@ -199,7 +202,16 @@ def solve_cp_sat(
         model.Add(N * night_sum - tot_night_req == d_pos - d_neg)
         penalty_terms.append(w_night * (d_pos + d_neg))
 
-    # S4: Kıdemli Usta Varlığı (Her vardiyada en az 1 usta)
+    # S4: Toplam Çalışma / İş Yükü Dengesizliği (Bireysel toplam vardiya sayısı ile kesirli ortalama sapması)
+    tot_work_req = (r_day + r_eve + r_night) * n_days
+    for i in range(n_workers):
+        work_sum = sum(x[i, t, k] for t in range(n_days) for k in [1, 2, 3])
+        d_pos_work = model.NewIntVar(0, N * n_days, f"dpos_work_{i}")
+        d_neg_work = model.NewIntVar(0, N * n_days, f"dneg_work_{i}")
+        model.Add(N * work_sum - tot_work_req == d_pos_work - d_neg_work)
+        penalty_terms.append(w_workload * (d_pos_work + d_neg_work))
+
+    # S5: Kıdemli Usta Varlığı (Her vardiyada en az 1 usta)
     for t in range(n_days):
         for k in [1, 2, 3]:
             no_usta_var = model.NewBoolVar(f"no_usta_{t}_{k}")
@@ -211,7 +223,7 @@ def solve_cp_sat(
                 model.Add(no_usta_var == 1)
             penalty_terms.append(N * w_exp * no_usta_var)
 
-    # S5: Kişisel İzin Talepleri (pref_off gününde izinli olma)
+    # S6: Kişisel İzin Talepleri (pref_off gününde izinli olma)
     for i in range(n_workers):
         p_day_idx = int(workers[i].get('pref_off', 1)) - 1
         if 0 <= p_day_idx < n_days:
@@ -221,7 +233,9 @@ def solve_cp_sat(
             model.Add(x[i, p_day_idx, 0] == 1).OnlyEnforceIf(pref_viol_var.Not())
             penalty_terms.append(N * w_pref * pref_viol_var)
 
-    # 5. KÜRESEL AMAÇ FONKSİYONU
+    # =========================================================================
+    # 4. KÜRESEL AMAÇ FONKSİYONU VE SICAK BAŞLANGIÇ (WARM-START / HINTING)
+    # =========================================================================
     model.Minimize(sum(penalty_terms))
 
     # Başlangıç Sezgisel Tohumunu Çözücüye İpucu Olarak Ver (Warm-Starting / Hinting)
@@ -232,7 +246,7 @@ def solve_cp_sat(
                     model.AddHint(x[i, t, k], 1 if seed_schedule[i, t] == k else 0)
 
     # =========================================================================
-    # 6. ÇÖZÜCÜ YAPILANDIRMASI & ÇALIŞTIRMA
+    # 5. ÇÖZÜCÜ YAPILANDIRMASI & PARALEL ÇALIŞTIRMA (PARALLEL LNS SEARCH)
     # =========================================================================
     solver = cp_model.CpSolver()
     solver.parameters.max_time_in_seconds = float(max(0.5, time_limit))
@@ -276,15 +290,22 @@ def solve_cp_sat(
             'Posta Takım Bütünlüğü İhlali': 0,
             'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': 0,
             'Gece Nöbeti Dengesizliği': 0,
+            'Toplam İş Yükü Dengesizliği': 0,
             'Kıdem / Usta Eksikliği': 0,
             'Kişisel İzin İhlali': 0
         }
         final_score = 99999
 
-    best_bound = round(solver.BestObjectiveBound() / N, 1) if is_feasible else 0
-    mip_gap = 0.0
-    if is_feasible and final_score > 0:
+    if is_optimal:
+        best_bound = float(final_score)
+        mip_gap = 0.0
+    elif is_feasible:
+        raw_bound = round(solver.BestObjectiveBound() / N, 1)
+        best_bound = min(float(final_score), raw_bound)
         mip_gap = round(abs((final_score - best_bound) / max(1, final_score)) * 100, 1)
+    else:
+        best_bound = 0.0
+        mip_gap = 0.0
 
     if is_optimal:
         term_reason = f"🏆 OPTİMAL ÇÖZÜM BULUNDU (Google CP-SAT {solver.WallTime():.2f} sn'de matematiksel kanıtla tamamlandı, Gap: %0.0)."

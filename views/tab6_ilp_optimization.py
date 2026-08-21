@@ -90,12 +90,13 @@ def render_tab6(params):
     w_posta = params['weights'].get('posta', 35)
     w_exp = params['weights'].get('exp_mix', 60)
     w_night = params['weights'].get('night_imb', 25)
+    w_work = params['weights'].get('workload_imb', 20)
 
     st.markdown(rf"""
     <div style="background-color: #f8fafc; border: 2px solid #2563eb; border-radius: 10px; padding: 18px; margin-bottom: 20px;">
     <h4 style="color: #1e40af; margin-top: 0;">min Z (Toplam Minimize Edilen Yumuşak Ceza Skoru)</h4>
     <p style="font-size: 1.05rem; color: #1e293b;">
-    ILP / MILP Çözücüsü aşağıdaki 5 yumuşak kısıt ceza teriminin toplamını küresel düzeyde minimize etmektedir:
+    ILP / MILP Çözücüsü aşağıdaki 6 yumuşak kısıt ceza teriminin toplamını küresel düzeyde minimize etmektedir:
     </p>
     </div>
     """, unsafe_allow_html=True)
@@ -106,6 +107,7 @@ def render_tab6(params):
     + {w_posta} \cdot \sum_{{p \in \{{\text{{A,B,C,D}}\}}}} \sum_{{t=1}}^{{D}} P_{{p,t}} 
     + {w_exp} \cdot \sum_{{t=1}}^{{D}} \sum_{{k=1}}^{{3}} U_{{t,k}} 
     + {w_night} \cdot \sum_{{i=1}}^{{N}} (d_i^+ + d_i^-)
+    + {w_work} \cdot \sum_{{i=1}}^{{N}} (d_{{\text{{work}},i}}^+ + d_{{\text{{work}},i}}^-)
     """)
 
     st.markdown("""
@@ -115,6 +117,16 @@ def render_tab6(params):
     - <b><i>P<sub>p,t</sub></i> &isin; {0, 1} :</b> Posta Takım Bütünlüğü İhlali (<i>p</i> postasının <i>t</i> gününde farklı aktif vardiyalara bölünmesi).
     - <b><i>U<sub>t,k</sub></i> &isin; {0, 1} :</b> Kıdemli Usta Eksikliği (<i>t</i> günündeki <i>k</i> vardiyasında en az 1 Kıdemli Usta bulunmaması).
     - <b><i>d<sub>i</sub><sup>+</sup>, d<sub>i</sub><sup>&minus;</sup></i> &ge; 0 :</b> Gece Nöbet Dengesizliği (İşçi <i>i</i>'nin hedef ortalama gece nöbeti sayısından pozitif/negatif sapması).
+    - <b><i>d<sub>work,i</sub><sup>+</sup>, d<sub>work,i</sub><sup>&minus;</sup></i> &ge; 0 :</b> Toplam İş Yükü Dengesizliği (İşçi <i>i</i>'nin hedef ortalama aktif çalışma gün sayısından pozitif/negatif sapması).
+    """, unsafe_allow_html=True)
+
+    st.markdown("""
+    <div style="background-color: #f0fdf4; border-left: 4px solid #059669; padding: 12px 16px; border-radius: 8px; margin-top: 10px; margin-bottom: 10px; font-size: 0.88rem; color: #064e3b; line-height: 1.5;">
+        <b>💡 Yöneylem & İşgücü Etiği Notu: Katı Talep (=) vs. Fazla Adamlama / Hayalet Vardiya (≥):</b><br>
+        • <b>Problem:</b> Eğer vardiya kuralı "en az gereken kadar işçi (≥)" olarak tanımlanırsa; matematiksel çözücü gece nöbeti dengesizliğini düşürmek veya postayı bölmemek için <i>ihtiyaç olmadığı halde</i> bazı günlerde vardiyaya fazladan işçi yazar (örneğin 4 yerine 5 kişi).<br>
+        • <b>Yalın Gerçeklik:</b> Kağıt üstünde ceza puanı düşse de, gerçek hayatta şirkete gereksiz fazla mesai ve servis maliyeti biner; işçinin dinlenme hakkı gasp edilir.<br>
+        • <b>Standart:</b> Modelimiz her vardiyada sahada tam olarak gereken sayıda personelin çalıştığı <b>Yalın İşgücü (Katı Talep =)</b> ilkesini katı sert kısıt olarak uygular.
+    </div>
     """, unsafe_allow_html=True)
 
     st.divider()
@@ -173,7 +185,14 @@ def render_tab6(params):
 
     run_btn = st.button("🚀 ILP / MILP Optimizasyonunu Başlat", type="primary", width="stretch", key="btn_run_t6")
 
-    if not run_btn and "res_t6" not in st.session_state:
+    has_valid_res = (
+        "res_t6" in st.session_state and 
+        isinstance(st.session_state["res_t6"], dict) and 
+        isinstance(st.session_state["res_t6"].get('schedule'), np.ndarray) and 
+        st.session_state["res_t6"]['schedule'].shape == (num_workers, num_days)
+    )
+
+    if not run_btn and not has_valid_res:
         st.warning("👈 Optimizasyonu başlatmak için yukarıdaki **'🚀 ILP / MILP Optimizasyonunu Başlat'** butonuna basınız.")
         return
 
@@ -270,6 +289,94 @@ def render_tab6(params):
         </div>""", unsafe_allow_html=True)
 
     st.divider()
+
+    # ==============================================================================
+    # TEORİK ALT SINIR 2-AŞAMALI DETAYLI HESAPLAMA PANELİ (SADECE ILP SEKME 6 İÇİN)
+    # ==============================================================================
+    stage_bounds = meta.get('stage_bounds')
+    if not stage_bounds or not stage_bounds.get('stage1_analytical'):
+        try:
+            from algorithms.ilp_pulp_solver import compute_lp_relaxation_bound
+            active_workers = results.get('workers') or custom_workers
+            _, _, b_reasons, stage_bounds = compute_lp_relaxation_bound(
+                n_workers=num_workers,
+                n_days=num_days,
+                r_day=req_day,
+                r_eve=req_eve,
+                r_night=req_night,
+                weights=weights,
+                workers=active_workers,
+                return_breakdown=True,
+                return_stages=True
+            )
+            meta['stage_bounds'] = stage_bounds
+            meta['bound_reasons'] = b_reasons
+        except Exception:
+            stage_bounds = {}
+
+    if stage_bounds:
+        st.markdown("#### 🎯 Matematiksel Teorik Alt Sınır Hesaplama Detayı (2-Aşamalı Analiz)")
+        st.caption("Problemin fiziksel ve matematiksel alt sınırının (Best Bound) nasıl inşa edildiğini gösteren iki aşamalı analiz dökümü:")
+
+        s1_data = stage_bounds.get('stage1_analytical', {})
+        s2_data = stage_bounds.get('stage2_continuous_lp', {})
+        fin_bnd = stage_bounds.get('final_bound', best_bound)
+
+        col_st1, col_st2, col_st3 = st.columns(3)
+        with col_st1:
+            st.markdown(f"""
+            <div style="background-color: #f8fafc; border: 1.5px solid #3b82f6; border-radius: 8px; padding: 14px; min-height: 195px;">
+                <div style="font-weight: 800; color: #1d4ed8; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                    1️⃣ Analitik Kaçınılmazlık Tabanı
+                </div>
+                <div style="font-size: 0.78rem; color: #64748b; margin-top: 4px;">Kapalı formül (Güvercin Yuvası & Kapasite)</div>
+                <div style="font-size: 1.45rem; font-weight: 900; color: #1e40af; margin: 8px 0;">{s1_data.get('total', 0):g} Puan</div>
+                <ul style="font-size: 0.8rem; color: #334155; margin: 0; padding-left: 16px; line-height: 1.45;">
+                    <li><b>Gece Bölünemezliği:</b> {s1_data.get('night_lb', 0):g} Puan</li>
+                    <li><b>İş Yükü Bölünemezliği:</b> {s1_data.get('work_lb', 0):g} Puan</li>
+                    <li><b>Usta Kapasite Açığı:</b> {s1_data.get('usta_lb', 0):g} Puan</li>
+                    <li><b>İzin Kapasite Aşımı:</b> {s1_data.get('pref_lb', 0):g} Puan</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_st2:
+            st.markdown(f"""
+            <div style="background-color: #f8fafc; border: 1.5px solid #8b5cf6; border-radius: 8px; padding: 14px; min-height: 195px;">
+                <div style="font-weight: 800; color: #6d28d9; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                    2️⃣ Sürekli LP Gevşetmesi (LP Relaxation)
+                </div>
+                <div style="font-size: 0.78rem; color: #64748b; margin-top: 4px;">Kesirli Simplex Çözümü (x ∈ [0, 1])</div>
+                <div style="font-size: 1.45rem; font-weight: 900; color: #5b21b6; margin: 8px 0;">{s2_data.get('total', 0):g} Puan</div>
+                <ul style="font-size: 0.8rem; color: #334155; margin: 0; padding-left: 16px; line-height: 1.45;">
+                    <li><b>Sürekli LP Skoru (Z_LP):</b> {s2_data.get('total', 0):g} Puan</li>
+                    <li><b>Sirkadiyen & MYK:</b> Kesirli uzayda optimize</li>
+                    <li><b>Posta Bütünlüğü:</b> Kesirli paylaşım serbest</li>
+                </ul>
+            </div>
+            """, unsafe_allow_html=True)
+
+        with col_st3:
+            st.markdown(f"""
+            <div style="background-color: #f0fdf4; border: 2px solid #059669; border-radius: 8px; padding: 14px; min-height: 195px;">
+                <div style="font-weight: 800; color: #047857; font-size: 0.95rem; display: flex; align-items: center; gap: 6px;">
+                    🏆 Birleşik Teorik Alt Sınır (Z_LB)
+                </div>
+                <div style="font-size: 0.78rem; color: #065f46; margin-top: 4px;">max(1. Aşama, 2. Aşama) Sentezi</div>
+                <div style="font-size: 1.65rem; font-weight: 900; color: #059669; margin: 8px 0;">{fin_bnd:g} Puan</div>
+                <div style="font-size: 0.82rem; color: #064e3b; line-height: 1.4;">
+                    Hiçbir tamsayılı geçerli çözümün altına inemeyeceği <b>aşılması imkansız mutlak fiziksel tabandır</b>.
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        bound_reasons = meta.get('bound_reasons', [])
+        if bound_reasons:
+            with st.expander("📄 Kaçınılmaz Ceza Gerekçeleri ve Matematiksel Açıklamaları", expanded=False):
+                for reason in bound_reasons:
+                    st.markdown(f"- {reason}")
+        
+        st.divider()
 
     # --- 3 YÖNTEMİN KARŞILAŞTIRMA MATRİSİ ---
     st.markdown("### 📊 3 Temel Yaklaşımın Bütüncül Karşılaştırma Matrisi (Greedy vs. CSP vs. ILP)")

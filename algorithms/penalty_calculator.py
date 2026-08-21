@@ -25,6 +25,7 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night_imb = weights.get('night_imb', 25)
+    w_workload_imb = weights.get('workload_imb', weights.get('workload', 20))
     w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
@@ -57,7 +58,12 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     avg_night = np.mean(night_counts) if n_workers > 0 else 0.0
     night_pen = int(np.sum(np.abs(night_counts - avg_night)) * w_night_imb)
 
-    # 4. Vektörize Kişisel İzin İhlali
+    # 4. Vektörize Toplam Çalışma / İş Yükü Dengesizliği (Gün Bazında)
+    work_counts = np.sum(schedule[:n_workers, :] > 0, axis=1)
+    avg_work = np.mean(work_counts) if n_workers > 0 else 0.0
+    workload_pen = int(np.sum(np.abs(work_counts - avg_work)) * w_workload_imb)
+
+    # 5. Vektörize Kişisel İzin İhlali
     pref_days = np.array([workers[i].get('pref_off', 1) - 1 for i in range(min(n_workers, len(workers)))])
     valid_mask = (pref_days >= 0) & (pref_days < n_days)
     pref_rows = np.arange(len(pref_days))[valid_mask]
@@ -65,7 +71,7 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
     pref_viols = int(np.sum(schedule[pref_rows, pref_cols] != 0))
     pref_pen = int(pref_viols * w_pref)
 
-    # 5. Kıdem / Usta Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
+    # 6. Kıdem / Usta Eksikliği (Her aktif vardiyada en az 1 Kıdemli Usta bulunması)
     usta_set = {w['id'] for w in workers if w.get('is_usta', False)}
     exp_pen = 0
     for t in range(n_days):
@@ -79,10 +85,11 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
         'Posta Takım Bütünlüğü İhlali': posta_pen,
         'Sirkadiyen Ritim İhlali (Akşam->Gündüz)': circ_pen,
         'Gece Nöbeti Dengesizliği': night_pen,
+        'Toplam İş Yükü Dengesizliği': workload_pen,
         'Kıdem / Usta Eksikliği': exp_pen,
         'Kişisel İzin İhlali': pref_pen
     }
-    total_score = posta_pen + circ_pen + night_pen + exp_pen + pref_pen
+    total_score = posta_pen + circ_pen + night_pen + workload_pen + exp_pen + pref_pen
     return penalties, total_score
 
 
@@ -98,6 +105,7 @@ def build_fast_evaluator(workers, n_days, weights):
     w_posta = weights.get('posta', weights.get('posta_unity', 15))
     w_circ = weights.get('circadian', 50)
     w_night_imb = weights.get('night_imb', 25)
+    w_workload_imb = weights.get('workload_imb', weights.get('workload', 20))
     w_exp = weights.get('exp_mix', 60)
     w_pref = weights.get('pref_off', 40)
 
@@ -119,10 +127,15 @@ def build_fast_evaluator(workers, n_days, weights):
         avg_night = night_counts.mean()
         p_night = int(np.abs(night_counts - avg_night).sum() * w_night_imb)
 
-        # 3. Kişisel İzin
+        # 3. Toplam Çalışma / İş Yükü Dengesizliği
+        work_counts = (sched > 0).sum(axis=1)
+        avg_work = work_counts.mean()
+        p_workload = int(np.abs(work_counts - avg_work).sum() * w_workload_imb)
+
+        # 4. Kişisel İzin
         p_pref = int((sched[pref_rows, pref_cols] != 0).sum() * w_pref) if len(pref_rows) > 0 else 0
 
-        # 4. Usta Varlığı
+        # 5. Usta Varlığı
         p_exp = 0
         for t in range(n_days):
             col = sched[:, t]
@@ -131,7 +144,7 @@ def build_fast_evaluator(workers, n_days, weights):
                 if mask.any() and not is_usta_arr[mask].any():
                     p_exp += w_exp
 
-        # 5. Posta Bütünlüğü
+        # 6. Posta Bütünlüğü
         p_posta = 0
         for g in posta_groups:
             if len(g) > 1:
@@ -142,11 +155,14 @@ def build_fast_evaluator(workers, n_days, weights):
                         bc = np.bincount(act)
                         p_posta += (len(act) - bc.max()) * w_posta
 
-        return p_circ + p_night + p_pref + p_exp + p_posta
+        return p_circ + p_night + p_workload + p_pref + p_exp + p_posta
 
     return fast_evaluate
 
 
+# =============================================================================
+# 3. GÜNLÜK SERT KISIT DENETİMİ (DAILY HARD CONSTRAINT CHECK)
+# =============================================================================
 def check_hard_constraints_single_day(schedule, workers, day, n_workers, shift_reqs):
     """
     Belirli bir günde Sert Kısıtların (Vardiya kotaları ve 4 MYK zorunlu sertifikası)

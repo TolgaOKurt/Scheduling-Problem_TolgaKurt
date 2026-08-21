@@ -27,12 +27,20 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
     random.seed(seed)
     np.random.seed(seed)
     
+    # =========================================================================
+    # 1. BAŞLANGIÇ ÇÖZÜMÜ ÜRETİMİ (INITIAL SOLUTION / SEED GENERATION)
+    # =========================================================================
+    # Sıfırdan rastgele başlamak yerine, sert kısıtları %100 sağlayan en kaliteli
+    # Greedy (Yapıcı Sezgisel) çizelgesini başlangıç noktası (warm-start) olarak alır.
     init_res = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=custom_workers
     )
     init_sched = init_res['schedule']
     workers = init_res['workers']
     
+    # =========================================================================
+    # 2. MEVCUT DURUM VE BAŞLANGIÇ CEZA SKORU DEĞERLENDİRMESİ
+    # =========================================================================
     current_schedule = init_sched.copy()
     current_penalties, current_score = calculate_full_penalties(current_schedule, workers, n_workers, n_days, weights)
     eval_count = 1
@@ -47,12 +55,19 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
     if callback:
         callback(0, initial_score, initial_score, "| Başlangıç")
     
-    # LOCAL SEARCH İTERASYON DÖNGÜSÜ
+    # =========================================================================
+    # 3. YÖRESEL ARAMA & KOMŞULUK DÖNGÜSÜ (LOCAL SEARCH / HILL CLIMBING LOOP)
+    # =========================================================================
     for it in range(max_iterations):
+        # ---------------------------------------------------------------------
+        # 3.1 KOMŞULUK OPERATÖRÜ (NEIGHBORHOOD MOVE: RANDOM 2-WORKER DAY-SWAP)
+        # ---------------------------------------------------------------------
+        # Rastgele bir gün (d) ve o gün görev yapan rastgele 2 farklı işçi (w1, w2) seçilir.
         d = random.randint(0, n_days - 1)
         w1_idx = random.randint(0, n_workers - 1)
         w2_idx = random.randint(0, n_workers - 1)
         
+        # Aynı işçi seçildiyse takas anlamsızdır; pas geçilir (No-op).
         if w1_idx == w2_idx:
             no_improve_streak += 1
             history.append(float(current_score))
@@ -63,6 +78,10 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
         s1 = current_schedule[w1_idx, d]
         s2 = current_schedule[w2_idx, d]
         
+        # ---------------------------------------------------------------------
+        # 3.2 HIZLI ÖN-FİLTRELEME (SAME SHIFT FILTERING)
+        # ---------------------------------------------------------------------
+        # İki işçi zaten aynı vardiyadaysa (örn: ikisi de Gece) takas matrisi değiştirmez.
         if s1 == s2:
             no_improve_streak += 1
             history.append(float(current_score))
@@ -70,13 +89,26 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
                 callback(it + 1, current_score, current_score, f"| İyileşen: {accepted_moves}")
             continue
             
+        # Hamle geçici olarak uygulanır (Trial Move)
         current_schedule[w1_idx, d] = s2
         current_schedule[w2_idx, d] = s1
         
+        # ---------------------------------------------------------------------
+        # 3.3 SERT KISIT UYGUNLUK DENETİMİ (HARD FEASIBILITY CHECK)
+        # ---------------------------------------------------------------------
+        # Yapılan takas; MYK sertifikalarını, 11 saat dinlenmeyi veya 6 gün üst üste
+        # çalışma kuralını bozuyor mu denetlenir. Bozuyorsa ceza hesaplanmadan anında reddedilir.
         if check_swap_feasibility(current_schedule, workers, d, w1_idx, w2_idx, n_workers, n_days, shift_reqs):
+            # -----------------------------------------------------------------
+            # 3.4 YUMUŞAK CEZA DEĞERLENDİRİCİSİ (OBJECTIVE FUNCTION EVALUATION)
+            # -----------------------------------------------------------------
             new_penalties, new_score = calculate_full_penalties(current_schedule, workers, n_workers, n_days, weights)
             eval_count += 1
             
+            # -----------------------------------------------------------------
+            # 3.5 KABUL KRİTERİ (STRICT DESCENT ACCEPTANCE)
+            # -----------------------------------------------------------------
+            # Hill Climbing yalnızca ve kesinlikle skoru düşüren (iyileştiren) hamleleri kabul eder.
             if new_score < current_score:
                 current_score = new_score
                 current_penalties = new_penalties
@@ -85,10 +117,12 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
                 if callback:
                     callback(it + 1, current_score, current_score, f"| İyileşen: {accepted_moves}")
             else:
+                # İyileşme yoksa hamle geri alınır (Rollback)
                 current_schedule[w1_idx, d] = s1
                 current_schedule[w2_idx, d] = s2
                 no_improve_streak += 1
         else:
+            # Sert kısıt ihlali durumunda hamle geri alınır (Rollback)
             current_schedule[w1_idx, d] = s1
             current_schedule[w2_idx, d] = s2
             no_improve_streak += 1
@@ -97,11 +131,17 @@ def run_hill_climbing(n_workers, n_days, r_day, r_eve, r_night, weights, max_ite
         if callback and it % stream_interval == 0:
             callback(it + 1, current_score, current_score, f"| İyileşen: {accepted_moves}")
 
-        # Erken Durdurma Kontrolü (Yerel Optimum Tuzak)
+        # ---------------------------------------------------------------------
+        # 3.6 DURDURMA KRİTERİ: YEREL OPTİMUM TUZAĞI (EARLY STOPPING / STAGNATION)
+        # ---------------------------------------------------------------------
+        # Son 500 iterasyon boyunca hiçbir iyileştirici komşu bulunamadıysa yerel tepeye ulaşılmıştır.
         if no_improve_streak >= 500:
             termination_reason = "🛑 YEREL OPTİMUMDA DURDU (Son 500 İterasyonda İyileştiren Komşu Kalmadı)"
             break
             
+    # -------------------------------------------------------------------------
+    # 3.7 DURDURMA KRİTERİ: MAKSİMUM İTERASYON LİMİTİ (MAX ITERATIONS REACHED)
+    # -------------------------------------------------------------------------
     if not termination_reason:
         termination_reason = f"🏁 İTERASYON LİMİTİNE ULAŞILDI (Maksimum Hamle Sınırı Doldu: K = {max_iterations})"
 

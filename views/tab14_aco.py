@@ -228,58 +228,220 @@ def render_tab14(params):
         meta=results.get('meta')
     )
 
-    render_metaheuristic_metric_cards(results)
+    render_metaheuristic_metric_cards(results, move_label="Kabul / Tur")
 
     st.divider()
 
     # ==============================================================================
-    # 7. GRAFİKLER & ÖZEL FEROMON YOĞUNLUK HARİTASI
+    # 7. GELİŞMİŞ KARINCA KOLONİSİ ANALİTİK VE AÇIKLAYICI GRAFİKLERİ
     # ==============================================================================
-    st.markdown("### 🎨 Karınca Kolonisi Analitik Grafikleri & Yakınsama Analizi")
+    st.markdown("### 🎨 Karınca Kolonisi Analitik Grafikleri & İç Dinamik Analizi")
+    st.caption("Algoritmanın çalışma mantığını, karıncaların sürü halindeki arama davranışını ve feromon hafızasının evrimini gösteren analitik paneller:")
 
+    meta = results.get('meta', {})
+
+    # 1. SATIR: ÇEŞİTLİLİK BANDI & FEROMON DİNAMİKLERİ
     g_col1, g_col2 = st.columns(2)
 
     with g_col1:
-        st.markdown("##### 1️⃣ İterasyona Göre Ceza Skoru İyileşme Eğrisi (Convergence)")
-        hist = results['score_history']
-        df_hist = pd.DataFrame({
-            "İterasyon": list(range(len(hist))),
-            "Ceza Skoru (Z)": hist
-        })
-        fig_conv = px.line(
-            df_hist,
-            x="İterasyon",
-            y="Ceza Skoru (Z)",
-            markers=True,
-            color_discrete_sequence=["#ca8a04"]
-        )
-        fig_conv.update_layout(
+        st.markdown("##### 1️⃣ 🐜 Koloni Çeşitlilik Bandı (Best vs. Mean vs. Worst Ant)")
+        st.caption("Her turdaki 20 karıncanın en iyi, ortalama ve en kötü skorları. Bandın daralması koloninin tek bir optimal çizelge üzerinde uzlaştığını (yakınsadığını) kanıtlar.")
+        
+        iter_best = meta.get('iter_best_history', results['score_history'])
+        iter_mean = meta.get('iter_mean_history', results['score_history'])
+        iter_worst = meta.get('iter_worst_history', results['score_history'])
+        iters = list(range(len(iter_best)))
+
+        fig_band = go.Figure()
+        # Üst sınır (Worst)
+        fig_band.add_trace(go.Scatter(
+            x=iters, y=iter_worst,
+            mode='lines',
+            line=dict(width=0),
+            showlegend=False,
+            hoverinfo='skip'
+        ))
+        # Alt sınır (Best) ve Aradaki Bant Dolgusu
+        fig_band.add_trace(go.Scatter(
+            x=iters, y=iter_best,
+            mode='lines',
+            line=dict(width=0),
+            fill='tonexty',
+            fillcolor='rgba(202, 138, 4, 0.18)',
+            name='Koloni Çeşitlilik Bandı (Min - Max)',
+            hoverinfo='skip'
+        ))
+        # En kötü karınca çizgisi
+        fig_band.add_trace(go.Scatter(
+            x=iters, y=iter_worst,
+            mode='lines',
+            line=dict(color='#ef4444', width=1.5, dash='dot'),
+            name='En Kötü Karınca (Max Z)'
+        ))
+        # Ortalama karınca çizgisi
+        fig_band.add_trace(go.Scatter(
+            x=iters, y=iter_mean,
+            mode='lines',
+            line=dict(color='#2563eb', width=2),
+            name='Ortalama Karınca (Ortalama Z)'
+        ))
+        # Küresel en iyi çizgisi
+        fig_band.add_trace(go.Scatter(
+            x=iters, y=results['score_history'],
+            mode='lines+markers',
+            marker=dict(size=4),
+            line=dict(color='#ca8a04', width=3),
+            name='Küresel En İyi (Global Best Z)'
+        ))
+        fig_band.update_layout(
             height=360,
             margin=dict(l=20, r=20, t=30, b=20),
             paper_bgcolor="#ffffff",
-            plot_bgcolor="#f8fafc"
+            plot_bgcolor="#f8fafc",
+            xaxis_title="İterasyon (Karınca Turu)",
+            yaxis_title="Ceza Skoru (Z)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
         )
-        st.plotly_chart(fig_conv, width="stretch", key="t14_fig_conv")
+        st.plotly_chart(fig_band, width="stretch", key="t14_fig_band")
 
     with g_col2:
-        st.markdown("##### 2️⃣ 🐜 Koloni Feromon Yoğunluk Matrisi (Pheromone Trail Heatmap)")
-        st.caption(r"Karıncaların atanan vardiya patikalarında biriktirdiği nihai feromon kuvveti ($[\tau_{\min}, \tau_{\max}]$). Yüksek değerler koloninin üzerinde uzlaştığı kilit atamaları gösterir.")
+        st.markdown("##### 2️⃣ 📈 Feromon Dinamikleri: Aktif vs. Terk Edilen Patikalar")
+        st.caption(r"Buharlaşma ($\rho$) ve Takviyenin ($\Delta \tau$) koku ayrışması: Karıncaların seçtiği **Aktif Patikaların güçlenmesi** ile seçilmeyen yolların $\tau_{\min}=0.1$'e buharlaşması.")
+
+        active_phero_hist = meta.get('active_pheromone_history', [])
+        inactive_phero_hist = meta.get('inactive_pheromone_history', [])
+        mean_phero = meta.get('mean_pheromone_history', [])
+        iters_phero = list(range(len(mean_phero)))
+
+        fig_phero_dyn = go.Figure()
         
-        active_phero = results.get('meta', {}).get('active_pheromone_matrix')
-        if active_phero is not None:
-            phero_arr = np.array(active_phero)
-            fig_phero = px.imshow(
-                phero_arr,
-                labels=dict(x="Gün", y="İşçi", color="Feromon (τ)"),
-                x=[f"G{d+1}" for d in range(num_days)],
-                y=[w['name'] for w in results['workers']],
-                color_continuous_scale="YlOrBr"
-            )
-            fig_phero.update_layout(
-                height=360,
-                margin=dict(l=20, r=20, t=30, b=20)
-            )
-            st.plotly_chart(fig_phero, width="stretch", key="t14_fig_phero")
+        # 1. Aktif Çözüm Patikasındaki Feromon
+        if active_phero_hist:
+            fig_phero_dyn.add_trace(go.Scatter(
+                x=iters_phero, y=active_phero_hist,
+                mode='lines+markers',
+                marker=dict(size=4),
+                line=dict(color='#ea580c', width=3),
+                name='🟠 Aktif Çözüm Patikası (Seçilen Yollar)'
+            ))
+        
+        # 2. Genel Matris Ortalaması
+        fig_phero_dyn.add_trace(go.Scatter(
+            x=iters_phero, y=mean_phero,
+            mode='lines',
+            line=dict(color='#ca8a04', width=2),
+            name='🟡 Tüm Matris Ortalaması (Genel τ)'
+        ))
+
+        # 3. Terk Edilen / Seçilmeyen Yollar
+        if inactive_phero_hist:
+            fig_phero_dyn.add_trace(go.Scatter(
+                x=iters_phero, y=inactive_phero_hist,
+                mode='lines',
+                line=dict(color='#94a3b8', width=1.8, dash='dot'),
+                name='⚪ Terk Edilen Yollar (Buharlaşan %75)'
+            ))
+
+        fig_phero_dyn.add_hline(y=0.1, line_dash="dash", line_color="#64748b", annotation_text="τ_min (0.1 Alt Taban)")
+        
+        fig_phero_dyn.update_layout(
+            height=360,
+            margin=dict(l=20, r=20, t=30, b=20),
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#f8fafc",
+            xaxis_title="İterasyon (Karınca Turu)",
+            yaxis_title="Feromon Şiddeti (τ)",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_phero_dyn, width="stretch", key="t14_fig_phero_dyn")
+
+    # 2. SATIR: GÜÇ DENGESİ & TAKAS KABUL ORANI
+    g_col3, g_col4 = st.columns(2)
+
+    with g_col3:
+        st.markdown("##### 3️⃣ ⚖️ Feromon Hafızası (τᵅ) vs. Sezgisel Cazibe (ηᵝ) Güç Dengesi")
+        st.caption("Karıncaların her vardiya türünde karar verirken geçmiş tecrübeye (feromon) mi yoksa kural cazibesine (sezgi) mi daha çok güvendiğini gösterir.")
+
+        shift_labels = meta.get('shift_labels', ["0: İzin (OFF)", "1: Gündüz", "2: Akşam", "3: Gece"])
+        phero_pow = meta.get('shift_pheromone_power', [1.0, 1.0, 1.0, 1.0])
+        heur_pow = meta.get('shift_heuristic_power', [1.0, 1.0, 1.0, 1.0])
+
+        fig_balance = go.Figure()
+        fig_balance.add_trace(go.Bar(
+            x=shift_labels,
+            y=phero_pow,
+            name='Feromon Hafızası (τ^α)',
+            marker_color='#ca8a04'
+        ))
+        fig_balance.add_trace(go.Bar(
+            x=shift_labels,
+            y=heur_pow,
+            name='Sezgisel Cazibe (η^β)',
+            marker_color='#2563eb'
+        ))
+        fig_balance.update_layout(
+            barmode='group',
+            height=360,
+            margin=dict(l=20, r=20, t=30, b=20),
+            paper_bgcolor="#ffffff",
+            plot_bgcolor="#f8fafc",
+            xaxis_title="Vardiya Türü",
+            yaxis_title="Ortalama Çekicilik Skoru",
+            legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+        )
+        st.plotly_chart(fig_balance, width="stretch", key="t14_fig_balance")
+
+    with g_col4:
+        st.markdown("##### 4️⃣ 🎯 Karınca Takas Karar Dağılımı & Sert Kısıt Kabul Oranı")
+        st.caption("Karıncaların denediği takas hamlelerinin kabul/ret istatistiği. Sert kısıtların (4 MYK / 11s dinlenme) arama uzayını ne kadar daralttığını kanıtlar.")
+
+        swap_stats = meta.get('swap_stats', {'prob_rejected': 0, 'hard_rejected': 0, 'accepted': 0})
+        labels_donut = [
+            "🟢 Kabul Edilen Geçerli Takaslar",
+            "🔴 Sert Kısıt (MYK/Dinlenme) Engeli",
+            "🟡 Düşük Feromon Olasılığı Reddi"
+        ]
+        values_donut = [
+            swap_stats.get('accepted', 0),
+            swap_stats.get('hard_rejected', 0),
+            swap_stats.get('prob_rejected', 0)
+        ]
+        colors_donut = ["#16a34a", "#dc2626", "#eab308"]
+
+        fig_donut = go.Figure(data=[go.Pie(
+            labels=labels_donut,
+            values=values_donut,
+            hole=0.45,
+            marker_colors=colors_donut,
+            textinfo="percent+label",
+            insidetextorientation="radial"
+        )])
+        fig_donut.update_layout(
+            height=360,
+            margin=dict(l=20, r=20, t=30, b=20),
+            showlegend=False
+        )
+        st.plotly_chart(fig_donut, width="stretch", key="t14_fig_donut")
+
+    # 3. SATIR: KOLONİ FEROMON YOĞUNLUK MATRİSİ (ISI HARİTASI)
+    st.markdown("##### 5️⃣ 🐜 Koloni Feromon Yoğunluk Matrisi (Pheromone Trail Heatmap)")
+    st.caption(r"Karıncaların atanan vardiya patikalarında biriktirdiği nihai feromon kuvveti ($[\tau_{\min}, \tau_{\max}]$). Yüksek değerler koloninin üzerinde uzlaştığı kilit atamaları gösterir.")
+    
+    active_phero = meta.get('active_pheromone_matrix')
+    if active_phero is not None:
+        phero_arr = np.array(active_phero)
+        fig_phero = px.imshow(
+            phero_arr,
+            labels=dict(x="Gün", y="İşçi", color="Feromon (τ)"),
+            x=[f"G{d+1}" for d in range(num_days)],
+            y=[w['name'] for w in results['workers']],
+            color_continuous_scale="YlOrBr"
+        )
+        fig_phero.update_layout(
+            height=380,
+            margin=dict(l=20, r=20, t=30, b=20)
+        )
+        st.plotly_chart(fig_phero, width="stretch", key="t14_fig_phero")
 
     # Standart Analitik Grafikler & Çizelge Tablosu
     render_standard_schedule_analytics(
@@ -287,6 +449,6 @@ def render_tab14(params):
         num_days=num_days,
         key_prefix="t14_aco",
         solver_name="Ant Colony Optimization (ACO)",
-        start_chart_num=3,
+        start_chart_num=6,
         show_request_details=True
     )

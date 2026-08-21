@@ -33,10 +33,13 @@ from algorithms.evolutionary_engine import initialize_population
 from algorithms.solver_contract import finalize_solver_execution
 
 
+# =============================================================================
+# 1. KESİKLİ FARK VEKTÖRÜ OPERATÖRÜ (DISCRETE DIFFERENCE OPERATOR: A ⊖ B)
+# =============================================================================
 def _extract_swap_sequence(source_mat: np.ndarray, target_mat: np.ndarray, n_workers: int, n_days: int) -> List[Tuple[int, int, int]]:
     """
-    source_mat matrisini target_mat matrisine yaklaştırmak için gereken
-    (gün, işçi1, işçi2) takas operatörleri listesini (Fark Dizisi - Difference Vector) çıkarır.
+    source_mat matrisini target_mat matrisine dönüştürmek için gereken
+    (gün, işçi1, işçi2) takas operatörleri listesini (Hız / Fark Vektörü) çıkarır.
     """
     swaps = []
     temp_mat = source_mat.copy()
@@ -97,13 +100,6 @@ def run_particle_swarm_optimization(
 ) -> Dict[str, Any]:
     """
     Vardiya Çizelgeleme Problemi için Kesikli Parçacık Sürü Zekası (Discrete PSO) Çözücüsü.
-    
-    Parametreler:
-    - swarm_size (int): Sürüdeki parçacık sayısı (Varsayılan: 30)
-    - max_iterations (int): Maksimum sürü iterasyon sayısı (Varsayılan: 100)
-    - w_inertia (float): Atalet ağırlığı (0.4 - 0.9)
-    - c1_cognitive (float): Bilişsel çekim katsayısı (p_best çekimi)
-    - c2_social (float): Sosyal çekim katsayısı (g_best çekimi)
     """
     start_time = time.time()
     random.seed(seed)
@@ -116,14 +112,16 @@ def run_particle_swarm_optimization(
     else:
         workers = generate_worker_profiles(n_workers, n_days, randomize=False)
 
-    # 1. En İyi Başlangıç Çözümünü Al (Greedy Seeding)
+    # =========================================================================
+    # 2. BAŞLANGIÇ SÜRÜSÜ VE KÜRESEL EN İYİ (g_best) İLKLENDİRMESİ
+    # =========================================================================
     greedy_seed = get_best_greedy_initial_solution(
         n_workers, n_days, r_day, r_eve, r_night, weights, custom_workers=workers
     )
     greedy_sched = greedy_seed['schedule']
     workers = greedy_seed['workers']
 
-    # 2. Sürünün İlklendirilmesi (Initial Swarm Generation)
+    # Sürüyü Greedy tohumu etrafında geçerli swap mutasyonları ile dağıt (Swarm Seeding)
     raw_population = initialize_population(
         greedy_sched, swarm_size, n_workers, n_days, workers, shift_reqs
     )
@@ -140,7 +138,7 @@ def run_particle_swarm_optimization(
 
     initial_baseline_score = int(np.mean(initial_scores))
     
-    # Küresel En İyi (g_best) İlklendirmesi
+    # Sürü lideri (g_best) seçimi
     best_particle_idx = int(np.argmin(initial_scores))
     gbest_position = particles[best_particle_idx].position.copy()
     gbest_score = particles[best_particle_idx].current_score
@@ -154,48 +152,59 @@ def run_particle_swarm_optimization(
     if callback:
         callback(0, gbest_score, initial_baseline_score, f"| Sürü: {swarm_size} Parçacık")
 
-    # 3. PSO Sürü Arama Döngüsü (Swarm Optimization Loop)
+    # =========================================================================
+    # 3. PSO SÜRÜ ARAMA VE HIZ/KONUM GÜNCELLEME DÖNGÜSÜ (PSO MAIN LOOP)
+    # =========================================================================
     for it in range(1, max_iterations + 1):
-        # Dinamik Atalet Ağırlığı (Linear Decreasing Inertia Weight)
+        # ---------------------------------------------------------------------
+        # 3.1 DİNAMİK ATALET AĞIRLIĞI (LINEAR DECREASING INERTIA WEIGHT)
+        # ---------------------------------------------------------------------
+        # Başta geniş keşif (Exploration), sonda derin sömürü (Exploitation) için w lineer azaltılır
         w_current = w_inertia - ((w_inertia - 0.4) * (it / max_iterations))
 
         current_scores = []
 
         for p_idx, particle in enumerate(particles):
-            # Bilişsel ve Sosyal Fark Takas Dizilerini Çıkar
+            # -----------------------------------------------------------------
+            # 3.2 BİLİŞSEL VE SOSYAL FARK DİZİLERİNİN ÇIKARILMASI
+            # -----------------------------------------------------------------
             cognitive_swaps = _extract_swap_sequence(particle.position, particle.pbest_position, n_workers, n_days)
             social_swaps = _extract_swap_sequence(particle.position, gbest_position, n_workers, n_days)
 
-            # Yeni Hız Vektörünü Oluştur (Velocity Update)
+            # -----------------------------------------------------------------
+            # 3.3 YENİ HIZ VEKTÖRÜ OLUŞTURMA (VELOCITY UPDATE: V = w*V + c1*r1*Cog + c2*r2*Soc)
+            # -----------------------------------------------------------------
             new_velocity: List[Tuple[int, int, int]] = []
 
-            # 1. Atalet Bileşeni (Inertia)
+            # 1. Atalet Bileşeni (Inertia Component)
             if particle.velocity and random.random() < w_current:
                 sample_len = max(1, int(len(particle.velocity) * w_current))
                 new_velocity.extend(random.sample(particle.velocity, min(sample_len, len(particle.velocity))))
 
-            # 2. Bilişsel Çekim (Cognitive: p_best'e doğru)
+            # 2. Bilişsel Çekim (Cognitive Attraction: Parçacığın kendi en iyisi p_best'e yönelmesi)
             r1 = random.random()
             cog_prob = min(1.0, (c1_cognitive * r1) / 2.0)
             for swap in cognitive_swaps:
                 if random.random() < cog_prob:
                     new_velocity.append(swap)
 
-            # 3. Sosyal Çekim (Social: g_best'e doğru)
+            # 3. Sosyal Çekim (Social Attraction: Sürü lideri g_best'e yönelme)
             r2 = random.random()
             soc_prob = min(1.0, (c2_social * r2) / 2.0)
             for swap in social_swaps:
                 if random.random() < soc_prob:
                     new_velocity.append(swap)
 
-            # Hız Kırpma (Velocity Clamping)
+            # 4. Hız Kırpma (Velocity Clamping: Aşırı savrulmayı önleme)
             max_vel_len = max(5, int(n_days * 3))
             if len(new_velocity) > max_vel_len:
                 new_velocity = random.sample(new_velocity, max_vel_len)
 
             particle.velocity = new_velocity
 
-            # Konum Güncellemesi (Position Update: X_i = X_i ⊕ V_i)
+            # -----------------------------------------------------------------
+            # 3.4 KONUM GÜNCELLEMESİ (POSITION UPDATE: X = X ⊕ V) & KISIT KONTROLÜ
+            # -----------------------------------------------------------------
             new_position = particle.position.copy()
             applied_swaps = 0
 
@@ -203,13 +212,17 @@ def run_particle_swarm_optimization(
                 if w1 < n_workers and w2 < n_workers and new_position[w1, d] != new_position[w2, d]:
                     temp_pos = new_position.copy()
                     temp_pos[w1, d], temp_pos[w2, d] = temp_pos[w2, d], temp_pos[w1, d]
+                    # Sert kısıt kontrolü
                     if check_swap_feasibility(temp_pos, workers, d, w1, w2, n_workers, n_days, shift_reqs):
                         new_position = temp_pos
                         applied_swaps += 1
 
             velocity_swaps_count += applied_swaps
 
-            # Durgunluktan Kaçış & Türbülans (Stagnation Turbulence / Chaos Mutation)
+            # -----------------------------------------------------------------
+            # 3.5 DURGUNLUKTAN KAÇIŞ & KAOTİK TÜRBÜLANS (STAGNATION TURBULENCE)
+            # -----------------------------------------------------------------
+            # Parçacık 5 iterasyon gelişmediyse arama uzayını tazelemek için kaotik takas uygulanır
             if particle.stagnation_count >= 5:
                 turbulence_escapes += 1
                 particle.stagnation_count = 0
@@ -222,14 +235,16 @@ def run_particle_swarm_optimization(
                         if check_swap_feasibility(temp_pos, workers, d_rand, w_a, w_b, n_workers, n_days, shift_reqs):
                             new_position = temp_pos
 
-            # Yeni Konumun Ceza Puanını Değerlendir
+            # -----------------------------------------------------------------
+            # 3.6 CEZA HESAPLAMA VE BİLİŞSEL/SOSYAL HAFIZA GÜNCELLEMESİ
+            # -----------------------------------------------------------------
             _, new_score = calculate_full_penalties(new_position, workers, n_workers, n_days, weights)
             eval_count += 1
             particle.position = new_position
             particle.current_score = new_score
             current_scores.append(new_score)
 
-            # Bilişsel Hafıza Güncellemesi (p_best Update)
+            # Bireysel En İyi (p_best) Güncellemesi
             if new_score < particle.pbest_score:
                 particle.pbest_score = new_score
                 particle.pbest_position = new_position.copy()
@@ -237,7 +252,7 @@ def run_particle_swarm_optimization(
             else:
                 particle.stagnation_count += 1
 
-            # Sosyal Hafıza Güncellemesi (g_best Update)
+            # Küresel En İyi (g_best) Güncellemesi
             if new_score < gbest_score:
                 gbest_score = new_score
                 gbest_position = new_position.copy()

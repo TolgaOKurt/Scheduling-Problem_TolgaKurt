@@ -85,11 +85,11 @@ def render_tab3():
     st.divider()
 
     # ==============================================================================
-    # 2. 5 SERT (HARD) VE 5 YUMUŞAK (SOFT) KISIT DETAY TABLOSU
+    # 2. 5 SERT (HARD) VE 6 YUMUŞAK (SOFT) KISIT DETAY TABLOSU
     # ==============================================================================
-    st.markdown("### ⚖️ 2. Çelik Tesis Modeli: 5 Sert (Hard) ve 5 Yumuşak (Soft) Kısıt Yapısı")
+    st.markdown("### ⚖️ 2. Çelik Tesis Modeli: 5 Sert (Hard) ve 6 Yumuşak (Soft) Kısıt Yapısı")
     st.markdown("""
-    Optimizasyon algoritmalarımızda uygulanan 10 temel kısıtın detaylı operasyonel gerekçeleri ve yasal dayanakları:
+    Optimizasyon algoritmalarımızda uygulanan 11 temel kısıtın detaylı operasyonel gerekçeleri ve yasal dayanakları:
     """)
 
     col_steel_hard, col_steel_soft = st.columns(2)
@@ -139,7 +139,7 @@ def render_tab3():
     with col_steel_soft:
         st.markdown("""
         <div class="card-box" style="border-top: 5px solid #2563eb; background-color: #f8faff;">
-            <div class="card-title" style="color: #1e40af;"><span class="badge-soft">ESNEK</span> 5 Yumuşak Kısıt (Soft Constraints)</div>
+            <div class="card-title" style="color: #1e40af;"><span class="badge-soft">ESNEK</span> 6 Yumuşak Kısıt (Soft Constraints)</div>
             <p style="margin-bottom: 0.8rem; font-weight: 600; font-size: 0.92rem; color: #1e3a8a;">
                 Çözüm kalitesini, çalışan memnuniyetini ve operasyonel verimliliği artırır (İhlal = Ceza Puanı):
             </p>
@@ -162,13 +162,19 @@ def render_tab3():
                 </span>
             </div>
             <div class="constraint-list-item" style="border-left: 4px solid #2563eb;">
-                <b>9) Sirkadiyen Ritim Uyumlu Vardiya Dönüşü:</b><br>
+                <b>9) Toplam Çalışma / İş Yükü Dengesi:</b><br>
+                <span style="font-size: 0.88rem; color: #334155;">
+                    Personel arasındaki toplam aktif çalışma günü / saati farklarının minimize edilerek adil iş yükü dağılımının sağlanması.
+                </span>
+            </div>
+            <div class="constraint-list-item" style="border-left: 4px solid #2563eb;">
+                <b>10) Sirkadiyen Ritim Uyumlu Vardiya Dönüşü:</b><br>
                 <span style="font-size: 0.88rem; color: #334155;">
                     Vardiya geçişlerinin biyolojik ritme uygun olarak saat yönünde (Gündüz → Akşam → Gece → İzin) ilerlemesi; akşamdan hemen sabah vardiyasına ters dönüşün engellenmesi.
                 </span>
             </div>
             <div class="constraint-list-item" style="border-left: 4px solid #2563eb;">
-                <b>10) Kişisel İzin ve Mazeret Taleplerine Uyum:</b><br>
+                <b>11) Kişisel İzin ve Mazeret Taleplerine Uyum:</b><br>
                 <span style="font-size: 0.88rem; color: #334155;">
                     Çalışanların önceden sunduğu özel mazeret izinlerine ve vardiya değişim taleplerine azami düzeyde uyulması.
                 </span>
@@ -200,6 +206,7 @@ def render_tab3():
             "Rₜ,ₖ",
             "xᵢ,ₜ,ₖ ∈ {0, 1}",
             "dᵢ⁺, dᵢ⁻ ≥ 0",
+            "d_workᵢ⁺, d_workᵢ⁻ ≥ 0",
             "posta_devₚ,ₜ ≥ 0",
             "sᵢ,ₜˢⁱʳᵏ ∈ {0, 1}",
             "no_ustaₜ,ₖ ∈ {0, 1}"
@@ -214,6 +221,7 @@ def render_tab3():
             "İkili Karar Değişkeni",
             "Sürekli Sapma Değişkeni",
             "Sürekli Sapma Değişkeni",
+            "Sürekli Sapma Değişkeni",
             "İkili Ceza Değişkeni",
             "İkili Ceza Değişkeni"
         ],
@@ -226,6 +234,7 @@ def render_tab3():
             "t günü k vardiyasında sahada bulunması zorunlu minimum personel sayısı",
             "i çalışanı t gününde k vardiyasına atanırsa 1, aksi halde 0",
             "i çalışanının dönem boyunca tuttuğu gece nöbeti sayısının ortalamadan pozitif/negatif sapması",
+            "i çalışanının dönem boyunca toplam aktif çalışma gün sayısının ortalamadan pozitif/negatif sapması",
             "t gününde p postasındaki çalışanların ana çoğunluktan ayrılma (bölünme) sayısı",
             "i çalışanının t gününde akşam (2), t+1 gününde gündüz (1) çalışması halinde 1 olan sirkadiyen ihlal değişkeni",
             "t günü k vardiyasında en az bir kıdemli usta bulunmuyorsa 1 değerini alan ceza değişkeni"
@@ -254,9 +263,10 @@ def render_tab3():
     + w_{\text{sirk}} \sum_{i \in I} \sum_{t=1}^{D-1} s_{i,t}^{\text{sirk}} 
     + w_{\text{izin}} \sum_{i \in I} (1 - x_{i, p_i, 0}) 
     + w_{\text{gece}} \sum_{i \in I} (d_i^+ + d_i^-) 
+    + w_{\text{workload}} \sum_{i \in I} (d_{\text{work},i}^+ + d_{\text{work},i}^-)
     + w_{\text{usta}} \sum_{t \in T} \sum_{k=1}^3 \text{no\_usta}_{t,k}
     """)
-    st.caption("Burada w_posta, w_sirk, w_izin, w_gece, w_usta kullanıcı tarafından kontrol panelinde belirlenen ceza katsayılarıdır.")
+    st.caption("Burada w_posta, w_sirk, w_izin, w_gece, w_workload, w_usta kullanıcı tarafından kontrol panelinde belirlenen ceza katsayılarıdır.")
 
     st.divider()
 
@@ -271,9 +281,18 @@ def render_tab3():
         st.caption("Her çalışan bir günde yalnızca 1 göreve (Gündüz, Akşam, Gece veya İzin) atanabilir.")
         st.latex(r"\sum_{k \in \{0,1,2,3\}} x_{i,t,k} = 1, \quad \forall i \in I, \forall t \in T")
 
-        st.markdown("**2. Kesintisiz Üretim Minimum Kadro İhtiyacı (Sert Kısıt 1):**")
-        st.caption("Her vardiyada sahada gereken asgari personel sayısı tam olarak karşılanmalıdır.")
-        st.latex(r"\sum_{i \in I} x_{i,t,k} \ge R_{t,k}, \quad \forall t \in T, \forall k \in \{1, 2, 3\}")
+        st.markdown("**2. Kesintisiz Üretim Kadro İhtiyacı (Katı Talep - Sert Kısıt 1):**")
+        st.caption("Her vardiyada sahada gereken personel sayısı ne eksik ne fazla, tam olarak karşılanmalıdır.")
+        st.latex(r"\sum_{i \in I} x_{i,t,k} = R_{t,k}, \quad \forall t \in T, \forall k \in \{1, 2, 3\}")
+
+        st.markdown("""
+        <div style="background-color: #eff6ff; border-left: 4px solid #2563eb; padding: 12px 16px; border-radius: 6px; margin-top: 8px; margin-bottom: 14px; font-size: 0.88rem; color: #1e3a8a; line-height: 1.5;">
+            <b>🏭 Endüstriyel Karar Analizi: Katı Talep (=) vs. Fazla Adamlama (≥) ve Çizelgeleme Etiği:</b><br>
+            • <b>Neden "Büyük Eşit (≥)" Kullanılmaz?</b> Çözücüye kısıt "en az gereken kadar işçi (≥)" olarak verilirse; model gece nöbeti dengesizliği veya posta cezasını düşürmek için <i>ihtiyaç olmadığı halde</i> bazı günlerde vardiyaya fazladan işçi yazar (örneğin 4 yerine 5 kişi).<br>
+            • <b>Yapay Ceza Maskeleme:</b> Kağıt üzerinde ceza puanı düşer ancak gerçek hayatta fabrikaya gereksiz fazla mesai, servis ve yemek maliyeti biner; işçinin dinlenme hakkı gasp edilir.<br>
+            • <b>Yalın Üretim Standardı (=):</b> Çelik fabrikalarında her istasyon için kesin vardiya kotası esastır. Bu sebeple modelimiz tam eşitlik (=) prensibiyle çalışır.
+        </div>
+        """, unsafe_allow_html=True)
 
         st.markdown("**3. Kritik 4 MYK Sertifikası Zorunluluğu (Sert Kısıt 2):**")
         st.caption("Her vardiyada 4 kritik ehliyetin (Vinç, Potacı, Döküm, Gaz) her birinden en az 1 uzman bulunmalıdır.")
@@ -310,11 +329,15 @@ def render_tab3():
         st.latex(r"\sum_{t \in T} x_{i,t,3} - \bar{y}^N = d_i^+ - d_i^-, \quad d_i^+, d_i^- \ge 0, \quad \forall i \in I")
 
     with seq2_col:
-        st.markdown("**9. Sirkadiyen Ritim İleri Yönlü Geçiş (Yumuşak Kısıt 9):**")
+        st.markdown("**9. Toplam Çalışma / İş Yükü Dengesi Doğrusallaştırması (Yumuşak Kısıt 9):**")
+        st.caption("Hedef ortalama aktif çalışma gün sayısından (W_hedef) sapmalar pozitif/negatif değişkenlerle yakalanır:")
+        st.latex(r"\sum_{t \in T} \sum_{k=1}^3 x_{i,t,k} - \bar{W} = d_{\text{work},i}^+ - d_{\text{work},i}^-, \quad d_{\text{work},i}^+, d_{\text{work},i}^- \ge 0, \quad \forall i \in I")
+
+        st.markdown("**10. Sirkadiyen Ritim İleri Yönlü Geçiş (Yumuşak Kısıt 10):**")
         st.caption("Akşam vardiyasından (k=2) ertesi gün sabah vardiyasına (k=1) ters geçiş cezalandırılır:")
         st.latex(r"s_{i,t}^{\text{sirk}} \ge x_{i,t,2} + x_{i,t+1,1} - 1, \quad s_{i,t}^{\text{sirk}} \ge 0")
 
-        st.markdown("**10. Kişisel İzin Taleplerinin Karşılanması (Yumuşak Kısıt 10):**")
+        st.markdown("**11. Kişisel İzin Taleplerinin Karşılanması (Yumuşak Kısıt 11):**")
         st.caption("İşçinin talep ettiği izin gününde (p_i) çalışması (x ≠ 0) halinde ceza tetiklenir:")
         st.latex(r"\text{pref\_viol}_i \ge 1 - x_{i, p_i, 0}, \quad \text{pref\_viol}_i \in \{0, 1\}")
 
