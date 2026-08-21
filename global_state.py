@@ -510,7 +510,7 @@ def render_global_config_tab():
             "Kadro Üretim Modu:",
             kadro_options,
             horizontal=True,
-            help="Düzenli Kadro: İzin talepleri günlere rotasyonlu/dengeli yayılır.\nMükemmel Kadro: Herkes Kıdemli Usta, her 4 MYK sertifikasına sahip ve izinler sırayla talep edilir.\nRastgele Kadro: İzin talepleri, postalar ve sertifikalar TAMAMEN RASTGELE üretilir.",
+            help="Düzenli Kadro: İzin talepleri günlere rotasyonlu/dengeli yayılır.\nMükemmel Kadro: Herkes Kıdemli Usta, her 4 MYK sertifikasına sahip; her postanın izni aynı gün ve postalar farklı günlerde.\nRastgele Kadro: İzin talepleri, postalar ve sertifikalar TAMAMEN RASTGELE üretilir.",
             key="w_kadro_mode",
             on_change=_on_kadro_mode_change
         )
@@ -519,7 +519,7 @@ def render_global_config_tab():
         if "Rastgele" in kadro_mode_in:
             rand_seed_in = st.number_input("Rastgele Tohum (Seed)", min_value=1, max_value=1000, key="w_rand_seed", on_change=_on_rand_seed_change)
         elif "Mükemmel" in kadro_mode_in:
-            st.caption("✨ Tüm personel Kıdemli Usta, 4 MYK sertifikalı ve sıralı izinli.")
+            st.caption("✨ Tüm personel Kıdemli Usta, 4 MYK sertifikalı; her postanın izni aynı gün ve postalar farklı günlerde.")
         else:
             st.caption("ℹ️ Düzenli kadroda deterministik 4-Posta MYK kuralları uygulanır.")
 

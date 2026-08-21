@@ -44,7 +44,19 @@ def calculate_full_penalties(schedule, workers, n_workers, n_days, weights):
                 counts = [np.sum(active == s) for s in (1, 2, 3)]
                 majority = max(counts)
                 posta_dev += (len(active) - majority)
-    posta_pen = int(posta_dev * w_posta)
+
+    # Günlük 4-Posta Varlığı Kontrolü: Bir günde 4 posta da aktifse +1 puan ceza (3 veya daha az posta varsa ceza yok)
+    extra_4posta_pen = 0
+    for t in range(n_days):
+        active_postas_count = 0
+        for p in all_postas:
+            p_wids = [w['id'] for w in workers if w.get('posta') == p and w['id'] < schedule.shape[0]]
+            if len(p_wids) > 0 and np.any(schedule[p_wids, t] > 0):
+                active_postas_count += 1
+        if active_postas_count >= 4:
+            extra_4posta_pen += 1
+
+    posta_pen = int(posta_dev * w_posta) + extra_4posta_pen
 
     # 2. Vektörize Sirkadiyen Ritim İhlali (Akşam 2 -> Ertesi gün Gündüz 1)
     if n_days > 1:
@@ -154,6 +166,12 @@ def build_fast_evaluator(workers, n_days, weights):
                     if len(act) > 1:
                         bc = np.bincount(act)
                         p_posta += (len(act) - bc.max()) * w_posta
+
+        # Günlük 4-Posta Varlığı Kontrolü: Günde 4 posta da aktifse +1 puan ceza (3 veya daha az posta varsa ceza yok)
+        valid_groups = [g for g in posta_groups if len(g) > 0]
+        if len(valid_groups) >= 4:
+            active_post_per_day = sum((sched[g, :] > 0).any(axis=0) for g in valid_groups)
+            p_posta += int((active_post_per_day >= 4).sum())
 
         return p_circ + p_night + p_workload + p_pref + p_exp + p_posta
 

@@ -97,6 +97,8 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
         z_posta = pulp.LpVariable.dicts("z_posta", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpContinuous, lowBound=0, upBound=1)
         dev_posta_k = pulp.LpVariable.dicts("dev_posta_k", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), lowBound=0, cat=pulp.LpContinuous)
         posta_dev = pulp.LpVariable.dicts("posta_dev", ((p, t) for p in postas for t in range(n_days)), lowBound=0, cat=pulp.LpContinuous)
+        u_posta = pulp.LpVariable.dicts("u_posta", ((p, t) for p in postas for t in range(n_days)), cat=pulp.LpContinuous, lowBound=0, upBound=1)
+        four_posta_pen = pulp.LpVariable.dicts("four_posta_pen", (t for t in range(n_days)), cat=pulp.LpContinuous, lowBound=0, upBound=1)
         no_usta = pulp.LpVariable.dicts("no_usta", ((t, k) for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpContinuous, lowBound=0, upBound=1)
         
         d_pos = pulp.LpVariable.dicts("d_pos", (i for i in range(n_workers)), lowBound=0, cat=pulp.LpContinuous)
@@ -159,11 +161,18 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
                     model += y_posta[p, t, k] == pulp.lpSum([x[wid, t, k] for wid in p_wids])
                     model += dev_posta_k[p, t, k] >= y_posta[p, t, k] - N_p * z_posta[p, t, k]
                 model += posta_dev[p, t] == pulp.lpSum([dev_posta_k[p, t, k] for k in [1, 2, 3]])
+                if N_p > 0:
+                    model += pulp.lpSum([x[wid, t, k] for wid in p_wids for k in [1, 2, 3]]) <= N_p * u_posta[p, t]
+
+            valid_p_count = sum(1 for p in postas if any(w['posta'] == p for w in workers))
+            if valid_p_count >= 4:
+                model += four_posta_pen[t] >= pulp.lpSum([u_posta[p, t] for p in postas]) - 3
 
         total_penalty_expr = (
             w_circ * pulp.lpSum([sirk[i, t] for i in range(n_workers) for t in range(n_days - 1)]) +
             w_pref * pulp.lpSum([pref_viol[i] for i in range(n_workers)]) +
             w_posta * pulp.lpSum([posta_dev[p, t] for p in postas for t in range(n_days)]) +
+            pulp.lpSum([four_posta_pen[t] for t in range(n_days)]) +
             w_exp * pulp.lpSum([no_usta[t, k] for t in range(n_days) for k in [1, 2, 3]]) +
             w_night * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)]) +
             w_work * pulp.lpSum([d_pos_work[i] + d_neg_work[i] for i in range(n_workers)])
@@ -175,7 +184,7 @@ def compute_lp_relaxation_bound(n_workers, n_days, r_day, r_eve, r_night, weight
         if model.status == 1:
             lp_circ = round(w_circ * sum(pulp.value(sirk[i, t]) for i in range(n_workers) for t in range(n_days - 1)), 2)
             lp_pref = round(w_pref * sum(pulp.value(pref_viol[i]) for i in range(n_workers)), 2)
-            lp_posta = round(w_posta * sum(pulp.value(posta_dev[p, t]) for p in postas for t in range(n_days)), 2)
+            lp_posta = round(w_posta * sum(pulp.value(posta_dev[p, t]) for p in postas for t in range(n_days)) + sum(pulp.value(four_posta_pen[t]) for t in range(n_days)), 2)
             lp_exp = round(w_exp * sum(pulp.value(no_usta[t, k]) for t in range(n_days) for k in [1, 2, 3]), 2)
             lp_night = round(w_night * sum(pulp.value(d_pos[i]) + pulp.value(d_neg[i]) for i in range(n_workers)), 2)
             lp_work = round(w_work * sum(pulp.value(d_pos_work[i]) + pulp.value(d_neg_work[i]) for i in range(n_workers)), 2)
@@ -399,6 +408,8 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
     z_posta = pulp.LpVariable.dicts("z_posta", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpBinary)
     dev_posta_k = pulp.LpVariable.dicts("dev_posta_k", ((p, t, k) for p in postas for t in range(n_days) for k in [1, 2, 3]), lowBound=0, cat=pulp.LpContinuous)
     posta_dev = pulp.LpVariable.dicts("posta_dev", ((p, t) for p in postas for t in range(n_days)), lowBound=0, cat=pulp.LpContinuous)
+    u_posta = pulp.LpVariable.dicts("u_posta", ((p, t) for p in postas for t in range(n_days)), cat=pulp.LpBinary)
+    four_posta_pen = pulp.LpVariable.dicts("four_posta_pen", (t for t in range(n_days)), lowBound=0, cat=pulp.LpContinuous)
     
     # Kıdemli Usta Eksikliği Değişkeni
     no_usta = pulp.LpVariable.dicts("no_usta", ((t, k) for t in range(n_days) for k in [1, 2, 3]), cat=pulp.LpBinary)
@@ -485,6 +496,13 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
                 model += y_posta[p, t, k] == pulp.lpSum([x[wid, t, k] for wid in p_wids]), f"PostaCount_{p}_{t}_{k}"
                 model += dev_posta_k[p, t, k] >= y_posta[p, t, k] - N_p * z_posta[p, t, k], f"PostaDevK_{p}_{t}_{k}"
             model += posta_dev[p, t] == pulp.lpSum([dev_posta_k[p, t, k] for k in [1, 2, 3]]), f"PostaDevSum_{p}_{t}"
+            if N_p > 0:
+                model += pulp.lpSum([x[wid, t, k] for wid in p_wids for k in [1, 2, 3]]) <= N_p * u_posta[p, t], f"UPostaActive_{p}_{t}"
+
+        # Günlük 4-Posta Varlığı Kontrolü: 4 posta da aktifse +1 puan ceza (3 veya daha az posta varsa ceza yok)
+        valid_p_count = sum(1 for p in postas if any(w['posta'] == p for w in workers))
+        if valid_p_count >= 4:
+            model += four_posta_pen[t] >= pulp.lpSum([u_posta[p, t] for p in postas]) - 3, f"FourPostaPenLink_{t}"
 
     # =========================================================================
     # 4. KÜRESEL AMAÇ FONKSİYONU (GLOBAL OBJECTIVE FUNCTION)
@@ -500,6 +518,7 @@ def solve_ilp_pulp(n_workers, n_days, r_day, r_eve, r_night, weights, time_limit
         w_circ * pulp.lpSum([sirk[i, t] for i in range(n_workers) for t in range(n_days - 1)]) +
         w_pref * pulp.lpSum([pref_viol[i] for i in range(n_workers)]) +
         w_posta * pulp.lpSum([posta_dev[p, t] for p in postas for t in range(n_days)]) +
+        pulp.lpSum([four_posta_pen[t] for t in range(n_days)]) +
         w_exp * pulp.lpSum([no_usta[t, k] for t in range(n_days) for k in [1, 2, 3]]) +
         w_night_imb * pulp.lpSum([d_pos[i] + d_neg[i] for i in range(n_workers)]) +
         w_workload_imb * pulp.lpSum([d_pos_work[i] + d_neg_work[i] for i in range(n_workers)])

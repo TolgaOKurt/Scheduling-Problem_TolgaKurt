@@ -111,7 +111,7 @@ def render_tab15(params):
         time_limit = st.slider(
             "⏱️ Maksimum Süre Sınırı (Saniye):",
             min_value=1.0,
-            max_value=60.0,
+            max_value=120.0,
             value=10.0,
             step=1.0,
             help="CP-SAT çözücüsünün çözüm aramak için kullanacağı maksimum saniye."

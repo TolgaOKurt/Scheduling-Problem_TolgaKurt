@@ -165,10 +165,18 @@ def solve_cp_sat(
     penalty_terms = []
 
     # S1: Posta Takım Bütünlüğü (A, B, C, D takımlarının bölünmeme kuralı)
+    u_posta_vars = {}
     for t in range(n_days):
         for p in postas:
             p_wids = [w['id'] for w in workers if w.get('posta') == p]
             N_p = len(p_wids)
+            if N_p > 0:
+                u_p_t = model.NewBoolVar(f"u_posta_{p}_{t}")
+                u_posta_vars[p, t] = u_p_t
+                p_active_sum = sum(x[wid, t, k] for wid in p_wids for k in [1, 2, 3])
+                model.Add(p_active_sum == 0).OnlyEnforceIf(u_p_t.Not())
+                model.Add(p_active_sum >= 1).OnlyEnforceIf(u_p_t)
+
             if N_p > 1:
                 # z_posta[p, t, k]: p postasının t günündeki baskın vardiyası k mı?
                 z_posta = {}
@@ -182,6 +190,14 @@ def solve_cp_sat(
                     # dev_k >= y_count - N_p * z_posta[k]
                     model.Add(dev_k >= y_count - N_p * z_posta[k])
                     penalty_terms.append(N * w_posta * dev_k)
+
+        # Günlük 4-Posta Varlığı Kontrolü: 4 posta da aktifse +1 puan ceza (N * 1)
+        valid_p_t = [u_posta_vars[p, t] for p in postas if (p, t) in u_posta_vars]
+        if len(valid_p_t) >= 4:
+            four_posta_var = model.NewBoolVar(f"four_posta_{t}")
+            model.Add(sum(valid_p_t) == 4).OnlyEnforceIf(four_posta_var)
+            model.Add(sum(valid_p_t) <= 3).OnlyEnforceIf(four_posta_var.Not())
+            penalty_terms.append(N * 1 * four_posta_var)
 
     # S2: Sirkadiyen Ritim (Akşam 2 -> Ertesi Gün Gündüz 1 Ters Dönüş Cezası)
     for i in range(n_workers):

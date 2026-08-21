@@ -16,7 +16,7 @@ def generate_worker_profiles(n_workers, n_days, randomize=False, seed=42, mode="
     - Düzenli Kadro: Her Posta (A, B, C, D) kendi içinde TAM SERTİFİKA SETİNE (Vinç, Potacı, Döküm, Gaz)
       sahip otonom bir ekip olarak kurulur.
     - Mükemmel Kadro: Her çalışan 'Kıdemli Usta' unvanına ve 4 kritik MYK ehliyetine eksiksiz sahiptir.
-      İzin talepleri 1'den D'ye sırayla (işçi i -> (i % D) + 1) dağıtılır.
+      Aynı kadrodaki (postadaki) tüm çalışanların izin günü aynı olur ve hiçbir iki kadro aynı gün izinli olmaz.
     - Rastgele Kadro: Nitelikler, postalar ve izin talepleri rastgele üretilir.
     """
     is_perfect = (mode == "🌟 Mükemmel Kadro" or mode == "Mükemmel Kadro" or (isinstance(mode, str) and "Mükemmel" in mode))
@@ -42,8 +42,9 @@ def generate_worker_profiles(n_workers, n_days, randomize=False, seed=42, mode="
             is_usta = True
             # 2. Herkes 4 kritik sertifikanın tümüne sahip (+ Kıdemli Usta)
             skills = set(all_certs) | {'Kıdemli Usta'}
-            # 3. Herkes sırayla izin talep ediyor: İşçi 0 -> Gün 1, İşçi 1 -> Gün 2, ..., İşçi i -> (i % D) + 1
-            pref_off = (i % n_days) + 1
+            # 3. Aynı kadrodaki (postadaki) tüm işçilerin izin günü aynı olsun, iki kadro aynı gün izinli olmasın:
+            # Posta A (0) -> Gün 1, Posta B (1) -> Gün 2, Posta C (2) -> Gün 3, Posta D (3) -> Gün 4
+            pref_off = (posta_idx % n_days) + 1
         elif not randomize:
             is_usta = (within_posta_idx == 0) # Her postanın ilk elemanı Kıdemli Usta
             skills = set()

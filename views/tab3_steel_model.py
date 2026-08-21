@@ -385,3 +385,35 @@ def render_tab3():
         </ul>
     </div>
     """, unsafe_allow_html=True)
+
+    # 3.8 4-Posta Günlük Blok Dinlenme ve Kısıt Karmaşıklığı Analizi
+    st.markdown("""
+    <div style="background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%); border: 1.5px solid #f59e0b; border-radius: 10px; padding: 1.4rem; margin-top: 1.2rem; box-shadow: 0 4px 12px rgba(245, 158, 11, 0.08);">
+        <h4 style="color: #92400e; margin-top: 0; margin-bottom: 0.7rem; font-size: 1.15rem;">
+            📌 4-Posta Günlük Blok Dinlenme Kuralı & Matematiksel vs. Metasezgisel Karmaşıklık Analizi
+        </h4>
+        <p style="font-size: 0.95rem; color: #78350f; line-height: 1.65; margin-bottom: 0.8rem;">
+            <b>🏭 Endüstriyel Mantık (Neden Bir Posta Tamamen İzinli Olmalıdır?):</b><br>
+            Ağır sanayi 4-posta 3-vardiya sisteminde her gün tam 3 aktif vardiya (Gündüz, Akşam, Gece) bulunur. 
+            4 bağımsız posta grubu (A, B, C, D) olduğu için, <b>herhangi bir günde tam 3 posta sahada çalışırken, 1 postanın o gün tüm personeliyle eksiksiz olarak 24 saat blok dinlenmede (OFF) olması hedeflenir</b>. 
+            Eğer bir günde 4 postanın tamamından sahaya çalışan çağrılmışsa; bu durum rotasyonun kırıldığını ve hiçbir postanın takım halinde dinlenemediğini gösterir. 
+            Bu sebeple bir günde 4 posta da aktifse <b>+1 ceza puanı</b> uygulanır (3 veya daha az posta için 0 ceza).
+        </p>
+        <div style="background-color: #ffffff; border: 1px solid #fde68a; border-radius: 8px; padding: 1rem; margin-bottom: 0.8rem;">
+            <b style="color: #b45309; font-size: 0.95rem;">⚡ Mükemmel Kadro Etkisi & Matematiksel Çözücülerde Hesaplama Maliyeti:</b>
+            <p style="font-size: 0.9rem; color: #451a03; line-height: 1.6; margin-top: 0.4rem; margin-bottom: 0;">
+                Bu kısıt özellikle <i>Mükemmel Kadro</i> modunda (her postanın aynı gün izin talep ettiği senaryoda) belirleyici bir rol oynar. 
+                Ancak MILP (PuLP) ve CP-SAT gibi matematiksel çözücülere bu kural eklendiğinde; her gün ve her posta için yeni ikili (binary) durum değişkenleri (<i>u<sub>p,t</sub></i>) ve Big-M doğrusallaştırma kısıtları tanımlanır. 
+                Bu ekleme Dal-Sınır (Branch-and-Bound) ağacındaki düğüm sayısını artırarak matematiksel çözücülerde <b>küçük bir arama yavaşlaması</b> meydana getirir.
+            </p>
+        </div>
+        <div style="background-color: #ffffff; border: 1px solid #fde68a; border-radius: 8px; padding: 1rem;">
+            <b style="color: #b45309; font-size: 0.95rem;">🧠 Kısıt Sayısı Arttıkça: Neden Metasezgiseller Çok Daha Az Etkilenir?</b>
+            <ul style="font-size: 0.9rem; color: #451a03; line-height: 1.6; margin-top: 0.4rem; margin-bottom: 0; padding-left: 1.2rem;">
+                <li><b>Matematiksel Çözücüler (MILP / CP-SAT):</b> Her yeni kısıt ve ceza veren değişken, arama ağacının dal sayısını üstel (exponential) olarak katlar ve LP Simpleks matrisini büyütür. Bu nedenle ceza fonksiyonu karmaşıklaştıkça matematiksel çözücüler zorunlu olarak yavaşlar.</li>
+                <li><b>Metasezgisel Algoritmalar (Genetik, SA, Tabu, VNS, PSO, ACO):</b> Arama ağacı veya matris tersi kurmazlar; yalnızca üretilen çizelgeyi amaç fonksiyonundan (fitness) geçirirler. Yeni bir ceza terimi, iç döngüde sadece tek bir vektörize NumPy kontrolü (mikrosaniye düzeyinde ek yük) anlamına gelir.</li>
+                <li><b>Sonuç (Ölçeklenebilirlik):</b> Kısıt ve ceza veren değişken sayısı arttıkça metasezgisel algoritmalar <b>neredeyse hiç hız kaybetmeden ($O(1)$ ek yük ile)</b> çalışmaya devam eder ve karmaşık endüstriyel problemler için vazgeçilmez hale gelir.</li>
+            </ul>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
