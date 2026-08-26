@@ -24,6 +24,10 @@ from views.tab12_vns import render_tab12
 from views.tab13_pso import render_tab13
 from views.tab14_aco import render_tab14
 from views.tab15_cp_sat import render_tab15
+from views.tab16_multi_objective import render_tab16
+from views.tab17_nsga2 import render_tab17
+from views.tab18_epsilon_constraint import render_tab18
+from views.tab19_moead import render_tab19
 from views.tab_comparison import render_tab_comparison
 
 
@@ -173,11 +177,38 @@ if st.button("⚡ Sekme 15: Google CP-SAT (Constraint Programming & SAT Çözüc
     st.session_state["active_tab"] = "tab15"
     st.rerun()
 
-# 6. SATIR / ALT NAVİGASYON: TÜM NAVİGASYONUN ALTINDA TEK BAŞINA DURAN SON SEKME
+# 6. SATIR: KARŞILAŞTIRMA & BENCHMARK ANALİZİ (Tek başına satır)
 btn_type_comp = "primary" if st.session_state["active_tab"] == "tab_comparison" else "secondary"
-if st.button("⚖️ Son Sekme: Bütüncül Karşılaştırma & Metasezgisel Benchmark Analizi", key="btn_t_comp", width="stretch", type=btn_type_comp):
+if st.button("⚖️ Sekme 4-15 Arası Karşılaştırma & Benchmark Analizi", key="btn_t_comp", width="stretch", type=btn_type_comp):
     st.session_state["active_tab"] = "tab_comparison"
     st.rerun()
+
+# 7. SATIR: ÇOK AMAÇLI OPTİMİZASYON & PARETO ANALİZİ (4 KOLON)
+c7_1, c7_2, c7_3, c7_4 = st.columns(4)
+
+with c7_1:
+    btn_type_t16 = "primary" if st.session_state["active_tab"] == "tab16" else "secondary"
+    if st.button("🎯 Sekme 16: MOO Teorisi & Pareto", key="btn_t16", width="stretch", type=btn_type_t16):
+        st.session_state["active_tab"] = "tab16"
+        st.rerun()
+
+with c7_2:
+    btn_type_t17 = "primary" if st.session_state["active_tab"] == "tab17" else "secondary"
+    if st.button("🧬 Sekme 17: NSGA-II Çok Amaçlı (Deb 2002)", key="btn_t17", width="stretch", type=btn_type_t17):
+        st.session_state["active_tab"] = "tab17"
+        st.rerun()
+
+with c7_3:
+    btn_type_t18 = "primary" if st.session_state["active_tab"] == "tab18" else "secondary"
+    if st.button("🎯 Sekme 18: ε-Kısıt Kesin Pareto (CP-SAT/MILP)", key="btn_t18", width="stretch", type=btn_type_t18):
+        st.session_state["active_tab"] = "tab18"
+        st.rerun()
+
+with c7_4:
+    btn_type_t19 = "primary" if st.session_state["active_tab"] == "tab19" else "secondary"
+    if st.button("🌐 Sekme 19: MOEA/D Ayrıştırma (Zhang 2007)", key="btn_t19", width="stretch", type=btn_type_t19):
+        st.session_state["active_tab"] = "tab19"
+        st.rerun()
 
 st.divider()
 
@@ -218,5 +249,13 @@ elif curr == "tab14":
     render_tab14(global_params)
 elif curr == "tab15":
     render_tab15(global_params)
+elif curr == "tab16":
+    render_tab16(global_params)
+elif curr == "tab17":
+    render_tab17(global_params)
+elif curr == "tab18":
+    render_tab18(global_params)
+elif curr == "tab19":
+    render_tab19(global_params)
 elif curr == "tab_comparison":
     render_tab_comparison(global_params)

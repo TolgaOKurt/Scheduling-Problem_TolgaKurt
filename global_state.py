@@ -105,7 +105,7 @@ def clear_all_solver_caches():
     for res_k in [
         'res_t4_myopic', 'res_t4_staggered', 'res_t4_mrv', 'res_t4',
         'res_t5', 'res_t6', 'res_t7', 'res_t8', 'res_t9', 'res_t10',
-        'res_t11', 'res_t12', 'res_t13', 'res_t14', 'res_t15'
+        'res_t11', 'res_t12', 'res_t13', 'res_t14', 'res_t15', 'res_t17', 'res_t18', 'res_t19'
     ]:
         if res_k in st.session_state:
             del st.session_state[res_k]

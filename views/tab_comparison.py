@@ -1,6 +1,6 @@
 """
 ================================================================================
-  VIEWS/TAB_COMPARISON.PY - BÜTÜNCÜL KARŞILAŞTIRMA & BENCHMARK ANALİZİ
+  VIEWS/TAB_COMPARISON.PY - SEKME 4-15 ARASI KARŞILAŞTIRMA & BENCHMARK ANALİZİ
 ================================================================================
   Bu modül; Matematiksel , Sezgisel  ve Metasezgisel
   yaklaşımların teorik ve pratik karşılaştırmalarını sunar.
@@ -29,7 +29,7 @@ from algorithms.aco_solver import run_ant_colony_optimization
 from algorithms.cp_sat_solver import solve_cp_sat
 
 def render_tab_comparison(params):
-    """Son sekme içeriğini çizer: Tüm Çözücülerin Bütüncül Karşılaştırması ve Benchmark Analizi."""
+    """Sekme 4-15 içeriğini çizer: Tüm Çözücülerin Karşılaştırması ve Benchmark Analizi."""
     num_workers = params['n_workers']
     num_days = params['n_days']
     req_day = params['r_day']

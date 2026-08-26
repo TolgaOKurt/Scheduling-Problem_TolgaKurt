@@ -778,3 +778,55 @@ def render_standard_schedule_analytics(results, num_days, key_prefix, solver_nam
     if show_request_details and 'request_details' in results and results['request_details']:
         render_request_details_expander(results['request_details'])
 
+
+# ================================================================================
+# 14. ÇOK AMAÇLI ÖDÜNLEŞİM (TRADE-OFF) VE KALDIRAÇ STRATEJİ KARTI
+# ================================================================================
+def render_tradeoff_insight_banner(ext_f1_sol, ext_f2_sol, knee_sol):
+    """
+    Pareto cephesindeki uç noktalar (min f1 ve min f2) ile Diz Noktası (Knee Point)
+    arasındaki ödünleşim (trade-off) ve kaldıraç oranını hesaplayıp stratejik bilgi kartı olarak çizer.
+    Örnek: 'İşletme bütünlüğünden %5.2 ödün verildiğinde çalışan memnuniyeti %78.4 artıyor.'
+    """
+    if not ext_f1_sol or not ext_f2_sol or not knee_sol:
+        return
+
+    f1_min = float(ext_f1_sol.get('f1', 0))
+    f2_max = float(ext_f1_sol.get('f2', 0))
+
+    f1_max = float(ext_f2_sol.get('f1', 0))
+    f2_min = float(ext_f2_sol.get('f2', 0))
+
+    f1_knee = float(knee_sol.get('f1', 0))
+    f2_knee = float(knee_sol.get('f2', 0))
+
+    # Eksen Genişlikleri (Range)
+    r_f1 = max(1.0, f1_max - f1_min)
+    r_f2 = max(1.0, f2_max - f2_min)
+
+    # Diz noktasına geçişteki değişimler
+    delta_f1 = max(0.0, f1_knee - f1_min)
+    delta_f2 = max(0.0, f2_max - f2_knee)
+
+    pct_f1_loss = (delta_f1 / r_f1) * 100.0
+    pct_f2_gain = (delta_f2 / r_f2) * 100.0
+
+    if delta_f1 > 0:
+        leverage = delta_f2 / delta_f1
+        leverage_text = f"Her <b>1 puanlık</b> işletme tavizine karşılık çalışan cezalarında <b>{leverage:.1f} puanlık</b> iyileşme (Kaldıraç: {leverage:.1f}x)"
+    else:
+        leverage_text = "İşletme bütünlüğünden sıfır tavizle maksimum çalışan memnuniyeti kazanımı sağlanmaktadır."
+
+    st.markdown(f"""
+    <div style="background: linear-gradient(135deg, #f0fdf4 0%, #ecfeff 100%); border: 1.5px solid #a7f3d0; border-left: 5px solid #059669; border-radius: 8px; padding: 14px 18px; margin: 14px 0 18px 0; color: #065f46;">
+        <div style="font-size: 1.05rem; font-weight: 700; color: #065f46; margin-bottom: 5px; display: flex; align-items: center; gap: 6px;">
+            <span>💡</span> <span>Yönetimsel Ödünleşim (Trade-off) Analizi & Altın Denge Kararı:</span>
+        </div>
+        <div style="font-size: 0.95rem; color: #1e293b; line-height: 1.6;">
+            İşletme bütünlüğünden (posta & usta) yalnızca <b style="color: #d97706;">%{pct_f1_loss:.1f} ödün verildiğinde</b>, çalışan memnuniyeti & izin karşılanmasında <b style="color: #059669;">%{pct_f2_gain:.1f} artış (iyileşme)</b> elde edilmektedir.
+            <br>
+            <span style="font-size: 0.88rem; color: #475569;">📌 <b>Kaldıraç Oranı:</b> {leverage_text}. Bu durum <b>⭐ Diz Noktası'nı (Knee Point)</b> fabrika yönetimi ve sendika için en rasyonel uzlaşma noktası yapmaktadır.</span>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
